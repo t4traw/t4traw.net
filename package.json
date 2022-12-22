@@ -1,0 +1,23 @@
+{
+  "name": "@example/basics",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "new": "node bin/new_post.js"
+  },
+  "dependencies": {
+    "@astrojs/mdx": "^0.12.1",
+    "astro": "^1.6.14",
+    "date-utils": "^1.2.21",
+    "to-snake-case": "^1.0.0"
+  },
+  "devDependencies": {
+    "sass": "^1.56.2"
+  }
+}

@@ -1,0 +1,43 @@
+---
+export interface Props {
+  title: string;
+}
+
+const { frontmatter } = Astro.props;
+
+import NavBar from "@components/NavBar.astro";
+import "../styles/common.scss";
+import "../styles/baloon.scss";
+---
+
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="generator" content={Astro.generator} />
+    <title>{frontmatter.title || frontmatter.head} - t4traw.net</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/holiday.css@0.9.8"
+    />
+  </head>
+  <body>
+    <header>
+      <p><a href="/">t4traw.net</a>/{frontmatter.head}</p>
+    </header>
+    <NavBar />
+    <main>
+      {frontmatter.title && <h1>{frontmatter.title}</h1>}
+      <slot />
+    </main>
+    <footer>
+      <p>
+        Created by <a href="https://twitter.com/t4traw" target="_blank"
+          >@t4traw</a
+        >
+      </p>
+    </footer>
+  </body>
+</html>

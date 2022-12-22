@@ -1,0 +1,47 @@
+---
+layout: "@layouts/Blog.astro"
+title: "GitHub Actionで環境変数を使う方法"
+head: "article"
+date: "2021-08-13"
+archives: ["2021/08"]
+tags:
+  - github
+  - github actions
+  - ci
+---
+
+import hero from "./hero.png";
+import setting from "./setting_secrets.png";
+
+CI、昔は wercker や CircleCI など使っていましたが、基本的な CI はもうすべて GitHub Action に移行しました（個人の gem の CI はまだ TravisCI を使っていますが）。
+
+<img src={hero} alt="" />
+
+Firebase などの init 時にサクっと作ってくれるし、config も分かりやすくて GitHub Action 大好きです 😆
+
+で、その GitHub Action ですが、しばらく設定しない期間があると忘れるのが環境変数です。GitHub のリポジトリ設定にある Secret を設定したら、もう GitHub Action でその環境変数を使える気になっちゃって、いざ環境変数を使うシーンでうまく動かず、「あれ？あれ？」となんども yml ファイルを見直すという事をしてしまいます 😓
+
+まず GitHub の Settings の中にある Secrets で、新しく環境変数を設定します。
+
+<img src={setting} alt="" />
+
+で、このままでは GitHub Action で使えません 😂
+
+yml ファイルで呼び出してあげる必要があります。たとえば FOO_BAR_KEY という環境変数で、Secrets にも同様の変数名で登録した場合
+
+```yml
+- name: Run test
+  run: npm run test
+  env:
+    RAILS_ENV: test
+    STAGE_ENV: test
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    FOO_BAR_KEY: ${{ secrets.FOO_BAR_KEY }}
+```
+
+これで`ENV["FOO_BAR_KEY"]`などが使えるようになります 😌
+
+RAILS_ENV などもこの形で書いておくと分かりやすいですね！
+
+それでは 🤟

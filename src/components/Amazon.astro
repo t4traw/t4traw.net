@@ -1,0 +1,17 @@
+---
+export interface Props {
+  asin: string;
+  title: string;
+}
+
+const { asin, title } = Astro.props;
+const url = `https://www.amazon.co.jp/dp/${asin}?tag=t4traw-22`;
+const image = `https://ws-fe.amazon-adsystem.com/widgets/q?_encoding=UTF8&ASIN=${asin}&Format=_SL250_&ID=AsinImage&MarketPlace=JP&ServiceVersion=20070822&WS=1&tag=t4traw-22&language=ja_JP`;
+---
+
+<div class="amazfy">
+  <a href={url}>
+    <img src={image} />
+    <p>{title}</p>
+  </a>
+</div>
