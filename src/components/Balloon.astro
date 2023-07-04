@@ -1,0 +1,16 @@
+---
+export interface Props {
+  name: "t4traw" | "yome" | "musume" | "musuko";
+  body: string;
+  layout: "left" | "right";
+}
+
+const { name, body, layout } = Astro.props;
+---
+
+<div class=`balloon_${layout}`>
+  <div class="img">
+    <img src=`/images/${name}.png` />
+  </div>
+  <p>{body}</p>
+</div>

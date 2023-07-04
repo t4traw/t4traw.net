@@ -1,0 +1,169 @@
+---
+layout: "@layouts/Blog.astro"
+title: "嫁のために日本一の焼き鳥を注文する時に便利なカウンターをTypeScript, React, zustand, TailwindCSS, Viteで開発した"
+head: "blog"
+date: "2022-01-14"
+archives: ["2022/01"]
+categories:
+  - 開発
+tags:
+  - TypeScript
+  - React
+  - zustand
+  - vite
+  - TailwindCSS
+---
+
+import Balloon from "@components/Balloon.astro";
+import Amazon from "@components/Amazon.astro";
+import ss from "./2022-01-15_21-45-32.gif";
+
+我が家……というか嫁が『**日本一**』という焼き鳥屋さんの大ファンです。レバーが苦手なのに、ここのレバー串は食べられてかつ美味しいみたいで、よく週末に足を運んでいます。
+
+子供が小さいうちは自分たちだけので良かったのですが、子供が大きくなるにつれて 1 人 3 本好きなの選んで良いルールができました。
+
+が、その時にいつも嫁が大変そうで
+
+<Balloon
+  name="musume"
+  body="わたし、ぼんじりのタレと、青じそつくねと、かわのしおー"
+  layout="left"
+/>
+
+<Balloon
+  name="musuko"
+  body="ぼく、かわのタレと、つくねと、かわのしおー"
+  layout="left"
+/>
+
+<Balloon
+  name="t4traw"
+  body="あ、自分、ぼんじりのしお、ひなどりしお、青じそつくねでお願いします"
+  layout="left"
+/>
+
+<Balloon name="yome" body="ちょっとまて" layout="right" />
+
+<Balloon
+  name="t4traw"
+  body="あ、今日ぼんじり売り切れてるっすね。じゃあナンコツかなー"
+  layout="left"
+/>
+
+<Balloon name="musume" body="じゃあ、つくねー" layout="left" />
+
+<Balloon
+  name="musuko"
+  body="やっぱぼくつくねやめて、青じそつくね！"
+  layout="left"
+/>
+
+<Balloon name="yome" body="ちょっとまて" layout="right" />
+
+毎回頼むのがバラバラかつ売り切れのもあるため、頼むものを覚えるのがすごく大変そうでした 😇
+
+なので、これをメモするための簡単なアプリ的なモノを作ってあげようと思っていたのですが、ちょうどよく（？）ノロウイルスに感染して 3 日間会社を休むことになりました 🤢
+
+少し症状の落ち着いた時間に、今年から本格的に触る事になった TypeScript と React 周りの技術スタックで、1 つアプリケーションを作ってみました！
+
+<img src={ss} />
+
+[日本一 焼き鳥カウンター](https://yakitori-counter.vercel.app/)
+
+焼き鳥や惣菜のメニューをプラスマイナスボタンで増減させ、合計金額が下に表示されるというシンプルなアプリケーションです 😊
+
+- TypeScript
+- React
+- zustrand
+- Vite
+- TailwindCSS
+
+といった構成で開発しました 🎉
+
+いやぁ、まだまだ全然書けないし、「あー Ruby だったらこうサっと書けるんだけどなー TS だとどうやるん？？」となる事も多々ありますが、最近のフロントエンドって書いてて本当に楽しいんですよねー。
+
+今回の本当に始めましては zustand ちゃんと Vite ちゃんですが、正直 TypeScript も React も Hello world 程度の事しか書いた事なかったので、本当に楽しく書けました 🥰
+
+## zustand は初心者でも分かりやすいシンプルな状態管理ライブラリ
+
+React の状態管理ライブラリはいくつかある（Redux とか Recoil とかありますよね）のを知っていて、いつも見るたびに「とりあえずシンプルなのはどれなんだろう……」と迷っていました。
+
+そんな自分にフレンドが「zustand シンプルでいいぞ」とオススメしてくれました。確かに実際使ってみて、シンプルで使いやすかったです。
+
+```typescript
+import create from "zustand";
+
+interface State {
+  price: number;
+  increase: (price: number) => void;
+  decrease: (price: number) => void;
+  reset: () => void;
+}
+
+export const useStore = create<State>((set) => ({
+  price: 0,
+  increase: (price) => set((state) => ({ price: state.price + price })),
+  decrease: (price) => set((state) => ({ price: state.price - price })),
+  reset: () => set({ price: 0 }),
+}));
+```
+
+と Store を作っておいて、使う時は、
+
+```typescript
+import { useStore } from "./store";
+
+const state = useStore();
+state.increase(price);
+```
+
+で使えるという、シンプル大好き向けのライブラリでした！
+
+ただ他のライブラリと色々比較したり、またアプリケーションによって「ここがマッチしないなぁ」と思う部分があるかもしれないので、そのときはまた書こうと思います ✍️
+
+## せっかくなので Webpack ではなく Vite を試してみた！
+
+いざ作り始める時に、「さーて npm init して webpack 準備して……あ、せっかくだから、ビルド系も遊んでみる？？」と思いつき、自分には縁がないだろうと思っていた Vite ちゃんを試してみました 😆
+
+[Vite | 次世代フロントエンドツール](https://ja.vitejs.dev/)
+
+Webpack じゃないビルド環境ってどんな感じなんだろうとドキドキしましたが、なんの問題もなく動いて拍子抜けしました。しかも、たしかに早い 🏎
+
+`npm init vite@latest`と打つだけで cli で会話式に使用するライブラリを聞かれるので、答えるだけで初期ファイルが生成され、特に意識する事なく`npm run dev`するだけで WEB サーバーが立ち上がります 🚀
+
+本番とかで動くか不安だったのですが、特に問題なく`npm run build`も動き、サーバーには vercel 様を利用させていただいたのですが、当然何の問題もなく動きました 👏
+
+UI フレームワークは TailwindCSS を採用したのですが、TailwindCSS は Ver 3.0 以降、Webpack などに PurgeCSS を自分で設定しなくても、
+
+```js
+const config = {
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  //...
+};
+```
+
+とすれば、不必要な CSS プロパティを削除してくれます。簡単！
+
+ん？特殊な事やらないならこれでいいのでは？？
+
+サクっとちょっとしたアプリケーションを開発する時はちょっと Vite ちゃんを利用したいと思います！
+
+---
+
+というわけで、TypeScript+React+zustand+TailwindCSS+Vite で簡単なアプリケーションを作った日記でした。今年は本格的に React を触る機会があるので、今から楽しみです 🚀
+
+ちなみに完成したアプリケーションを嫁に触ってもらったら、
+
+<Balloon
+  name="yome"
+  body="最終的に選んだやつだけサっと一覧で出せないのかよ！やり直し！"
+  layout="right"
+/>
+
+と、手厳しいご意見をいただきました 🤢
+
+いやぁ、お腹が痛い中、少ない時間で作ったんやでぇ……。ちょっと時間があったら改造しますわ……。
+
+それでは 🤟
+
+<Amazon asin="B09Y527YPV" title="プロを目指す人のためのTypeScript入門" />
