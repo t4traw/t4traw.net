@@ -1,13 +1,11 @@
 ---
 export interface Props {
-  title: string;
-  head: string;
-  date: string;
+  frontmatter: any;
 }
 
-const frontmatter = Astro.props;
+const { frontmatter } = Astro.props;
 
-import NavBar from "@components/NavBar.astro";
+import HeaderNav from "@components/HeaderNav.astro";
 import "../styles/common.scss";
 import "../styles/baloon.scss";
 ---
@@ -20,17 +18,13 @@ import "../styles/baloon.scss";
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
     <title>{frontmatter.title || frontmatter.head} - t4traw.net</title>
-    <link rel="stylesheet" href="https://fonts.xz.style/serve/inter.css" />
     <link
       rel="stylesheet"
       href="https://cdn.jsdelivr.net/npm/@exampledev/new.css@1.1.2/new.min.css"
     />
   </head>
   <body>
-    <header>
-      <p><a href="/">t4traw.net</a>/{frontmatter.head}</p>
-    </header>
-    <NavBar />
+    <HeaderNav />
     <main>
       <h1>{frontmatter.title}</h1>
       <small>{frontmatter.date}</small>

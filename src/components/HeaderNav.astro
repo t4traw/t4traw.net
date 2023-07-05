@@ -1,0 +1,44 @@
+<header>
+  <h1><a href="https://t4traw.net">t4traw.net</a></h1>
+  <nav>
+    <ul>
+      <li><a href="/">Home</a></li>
+      <li><a href="/about">About</a></li>
+      <li><a href="/blog">Blog</a></li>
+    </ul>
+  </nav>
+</header>
+
+<style lang="scss" scoped>
+  header {
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      a {
+        text-decoration: none;
+        color: #ff2828;
+      }
+    }
+
+    nav {
+      ul {
+        margin: 0;
+        padding: 0;
+        display: flex;
+        gap: 8px;
+        li {
+          list-style: none;
+          &::after {
+            margin-left: 8px;
+            content: "/";
+          }
+          &:last-child {
+            &::after {
+              content: "";
+            }
+          }
+        }
+      }
+    }
+  }
+</style>
