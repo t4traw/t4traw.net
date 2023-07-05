@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@astrojs/mdx": "^0.12.1",
+    "@astrojs/prefetch": "^0.2.3",
     "astro": "^1.6.14",
     "date-utils": "^1.2.21",
     "to-snake-case": "^1.0.0"
