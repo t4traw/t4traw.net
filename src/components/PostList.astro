@@ -4,17 +4,14 @@ const posts = await Astro.glob("../pages/blog/**/*.mdx");
 
 <div>
   {
-    posts
-      .reverse()
-      .slice(0, 3)
-      .map((post) => (
-        <article>
-          <p>
-            <a href={post.url}>{post.frontmatter.title}</a>
-          </p>
-          <small>{post.frontmatter.date}</small>
-        </article>
-      ))
+    posts.reverse().map((post) => (
+      <article>
+        <p>
+          <a href={post.url}>{post.frontmatter.title}</a>
+        </p>
+        <small>{post.frontmatter.date}</small>
+      </article>
+    ))
   }
 </div>
 

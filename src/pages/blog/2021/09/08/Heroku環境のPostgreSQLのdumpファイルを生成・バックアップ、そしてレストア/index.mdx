@@ -1,0 +1,61 @@
+---
+layout: "@layouts/Blog.astro"
+title: "Heroku環境のPostgreSQLのdumpファイルを生成・バックアップ、そしてレストア"
+head: "blog"
+date: "2021-09-08"
+archives: ["2021/09"]
+categories:
+  - 開発
+tags:
+  - heroku
+  - postgresql
+  - dump
+---
+
+import heroku from "./2021-09-09_08-28-12.png";
+
+Heroku の PostgreSQL で dump ファイルをレストアする事があったので、備忘録を残しておきます 🤲
+
+## バックアップ方法について
+
+まず、Heroku の PostgreSQL（Heroku Postgres Hobby Basic）は、アドオンの画面から簡単にバックアップファイル（dump ファイル）が生成できるようになっています。
+
+<img src={heroku} />
+
+それ以外にマニュアルで
+
+```sh
+$ heroku pg:backups:download -a YOUR_APP_NAME
+```
+
+とコマンドを打つと、カレンドディレクトリに latest.dump ファイルがダウンロードできます 🙂
+
+ただ、これ毎日となると cron 仕込むなりしないと大変なので、定期的なバックアップをしておいて欲しい所。そのコマンドもちゃんと用意されています 👍
+
+```sh
+$ heroku pg:backups schedule DATABASE_URL --at '02:00 Asia/Tokyo' -a YOUR_APP_NAME
+```
+
+↑ のコマンドで午前 2 時に定期的に dump ファイルを生成しておいてくれます！
+
+dump ファイルは最初の Heroku PostgreSQL アドオンのダッシュボードの画面からダウンロードできるようになっています。
+
+## レストアについて
+
+↑ でダウンロードした dump ファイルをレストアします 😆
+
+まず、dump ファイルを AWS S3 やレンタルサーバーなど、url でアクセスできるようにしておきます。S3 だったらちゃんと公開状態にしておかないといけないのでご注意を！
+
+url でアクセスできるようになったら、
+
+```sh
+$ heroku pg:backups restore 'https://example.com/postgresql.dump' DATABASE_URL -a YOUR_APP_NAME
+```
+
+というコマンドでレストアできます！url の所は適宜書き換えてくださいね 🙂 レストアなので、当然すべてのデータが dump ファイルの状態に戻るのでご注意をｗ
+
+2MB くらいのサイズだったらサクっとレストアできました 👏
+
+これ系は一番最初に動作確認しておかないと、いざという時に怖いですね！
+
+それでは 🤟

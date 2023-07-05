@@ -1,4 +1,4 @@
-# t4traw/blog
+# t4traw.net
 
 ```
 $ pnpm install

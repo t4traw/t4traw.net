@@ -3,17 +3,19 @@ import snake from "to-snake-case";
 import _ from "date-utils";
 
 const today = new Date();
-const post_title = snake(process.argv[2]);
+const post_title = process.argv[2];
 const genPath = `src/pages/blog/${today.toFormat("YYYY/MM/DD")}/${post_title}`;
 const fileName = `index.mdx`;
 const postPath = `./${genPath}/${fileName}`;
 
 const frontMatter = `---
-layout: "@layouts/Layout.astro"
+layout: "@layouts/Blog.astro"
 title: "${process.argv[2]}"
 head: "blog"
 date: "${today.toFormat("YYYY-MM-DD")}"
 archives: ["${today.toFormat("YYYY/MM")}"]
+categories:
+  -
 tags:
   -
 ---

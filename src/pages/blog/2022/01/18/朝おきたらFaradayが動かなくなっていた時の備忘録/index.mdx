@@ -1,0 +1,76 @@
+---
+layout: "@layouts/Blog.astro"
+title: "朝おきたらFaradayが動かなくなっていた時の備忘録"
+head: "blog"
+date: "2022-01-18"
+archives: ["2022/01"]
+categories:
+  - 開発
+tags:
+  - ruby
+  - gem
+  - faraday
+  - multipart-post
+---
+
+朝、自分がメンテしているアプリケーションでアラートが鳴っていて、何やら何かの yahoo-store-api 周りでエラーがでています。
+
+あれ？と思い gem を試しに動かしてみると、
+
+```sh
+undefined method authorization for #<Faraday::Connection:0x0000000125df17d8 @parallel_manager=nil, @headers={}, @params={}, @options=#<Faraday::RequestOptions (empty)>
+```
+
+といったエラー。
+
+あー初期化の時のメソッドが変わったのねー。という事で、
+
+```ruby
+Faraday.new(url: ACCESS_TOKEN_ENDPOINT) do |c|
+  c.adapter Faraday.default_adapter
+  # ↓ココ
+  c.request :authorization, :Basic, Base64.strict_encode64("#{@application_id}:#{@application_secret}")
+  c.headers["Content-Type"] = "application/x-www-form-urlencoded;charset=UTF-8"
+end
+```
+
+今まで`c.authorization, :Basic`だったのを、`c.request :authorization, :Basic`という形に変えてあげました。
+
+これで動くかなーと思ったら、次は
+
+```sh
+:multipart is not registered on Faraday::Request (Faraday::Error)
+```
+
+あれ？multipart に関する部分も変わったの？と思って公式のドキュメントを検索してみると、multipart に関する事がそもそも見つからない。そんな事ある？
+
+ん？他の機能どうなってる？と思い、調べてみると、今度は
+
+```sh
+uninitialized constant Faraday::UploadIO (NameError)
+```
+
+えー、もう全然いろんな部分動かなくなってるやん 🤢 Faraday::UploadIO は multipart-post gem に依存していると見かけたので、`bundle show multipart-post`してみると、Could not find gem が返ってくると。
+
+ここで落ち着いて faraday の GitHub を見てみると、UPGRADING.md というのがあるのを発見。
+
+[faraday/UPGRADING.md at main · lostisland/faraday](https://github.com/lostisland/faraday/blob/main/UPGRADING.md)
+
+読んでみると、net_http 以外のアダプターはすべて別 gem に切り出して、faraday 本体はコア機能のみにして開発を集中すると。あー全然追えていませんでしたごめんなさい 🥲
+
+あー、bundle update されて faraday のバージョンが 2.0 以上になったのが原因なので、解決方法としては、
+
+- faraday のバージョンを 1.x に固定する
+- 2.0 に上げて、faraday-multipart を利用する
+
+の 2 つとなります。
+
+ちょっと faraday を 2.0 にすると他に影響があるので、ひとまず 1.x でちゃんと動く事が分かったので、
+
+```ruby
+spec.add_dependency "faraday", "~> 1.8.0"
+```
+
+に gemspec を変更し、2.x 系に変更するのは色々と様子を見て変えたいと思います 😌
+
+それでは 🤟
