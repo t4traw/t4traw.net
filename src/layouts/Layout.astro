@@ -1,9 +1,10 @@
 ---
 export interface Props {
   title: string;
+  head: string;
 }
 
-const { frontmatter } = Astro.props;
+const frontmatter = Astro.props;
 
 import NavBar from "@components/NavBar.astro";
 import "../styles/common.scss";
