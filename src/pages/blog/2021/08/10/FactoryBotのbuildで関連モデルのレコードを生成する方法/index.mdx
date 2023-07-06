@@ -1,0 +1,135 @@
+---
+layout: "@layouts/Blog.astro"
+title: "FactoryBotのbuildで関連モデルのレコードを生成する方法"
+head: "blog"
+date: "2021-08-10"
+archives: ["2021/08"]
+categories:
+  - 開発
+tags:
+  - rails
+  - minitest
+  - factory_bot
+image: /images/factory_bot.png
+---
+
+いつも混乱する FactoryBot の「あれ？」って思う部分を記事にいくつか書いていこうと思います 🙂
+
+普通に name, email, password のシンプルな User モデルののテストデータを作るのなら、
+
+```ruby
+FactoryBot.define do
+  factory :user do
+    name { Faker::Internet.username }
+    email { Faker::Internet.email }
+    password { 'password' }
+  end
+end
+```
+
+といった具合に作成できます。
+
+しかし、こんな感じのモデル関係だった場合。
+
+```ruby
+class User < ApplicationRecord
+  belongs_to :group
+end
+
+class Group < ApplicationRecord
+  has_many :users
+end
+```
+
+Rails のアソシエーションは belongs_to の場合、カラムはデフォルトで必須項目（nil は不可）になっています。もしも上の例で group_id が nil で良いのなら`optional: true`を書かなければいけません。
+
+これを踏まえた上で、FactoryBot で書くと
+
+```ruby
+FactoryBot.define do
+  factory :user do
+    name { Faker::Internet.username }
+    email { Faker::Internet.email }
+    password { 'password' }
+    association :group
+  end
+end
+
+FactoryBot.define do
+  factory :group do
+    name { Faker::Company.name }
+  end
+end
+```
+
+といった感じで書くと思います。これで簡単にモデルのテストを書こうとすると、
+
+```ruby
+require "test_helper"
+
+class UserTest < ActiveSupport::TestCase
+  test "Userのレコードが生成できる" do
+    user = FactoryBot.build(:user)
+    assert user.save
+  end
+end
+```
+
+みたいな感じになります。
+
+しかし、これはテストが通りません。`FactoryBot.build(:user)`で関連先のモデルが生成されないので、必須項目が埋まっていないというエラーが発生してしまいます 🤢
+
+`FactoryBot.create(:user)`だと関連先のモデルも生成してくれるのですが、個人的にテストって`.save`や`.valid?`で assert 書きたいんですよねー。
+
+本来は外部キー制約がある物は紐付けられているレコードがあるべきだから、こうあるべきなんだろうけど、保存できない場合とかテストしたい時も関連モデルは作られていた方がやりやすいと思うんですよねー。
+
+これを解決する方法は、
+
+1. 一括で build 時でも関連レコードを生成するオプションを使う
+2. 個別に build 時でも生成されるように設定する
+
+の 2 つがあります ✌️
+
+## 一括で build 時でも関連レコードを生成するオプションを使う
+
+まず一括で build 時に生成する場合ですが、`FactoryBot.use_parent_strategy = false`を必要なところで設定すれば、build 時でも関連レコードが生成されます。
+
+※追記: これ、書いた後の FactoryBot すべてに適用されてしまうので、teardown で戻しておいてあげる必要があります 😓
+
+```ruby
+class UserTest < ActiveSupport::TestCase
+  teardown do
+    FactoryBot.use_parent_strategy = true
+  end
+
+  test "Userのレコードが生成できる" do
+    FactoryBot.use_parent_strategy = false
+    user = FactoryBot.build(:user)
+    assert user.save
+  end
+end
+```
+
+## 個別に build 時でも生成されるように設定する
+
+factory ファイルの方で association を設定した時に、build でも生成するようにしておく事もできます。
+
+```ruby
+FactoryBot.define do
+  factory :user do
+    name { Faker::Internet.username }
+    email { Faker::Internet.email }
+    password { 'password' }
+    association :group, strategy: :create # <- ココ
+  end
+end
+```
+
+ただ、これは簡単に変えられないので、レコードの保存自体をテストする時だけ、上の`FactoryBot.use_parent_strategy = false`の方が良いかもしれませんね 😆
+
+それでは 🤟
+
+## 参考
+
+- https://qiita.com/TunaGinger/items/ca08b1eaa5c1e321e302
+- https://github.com/thoughtbot/factory_bot_rails/issues/314

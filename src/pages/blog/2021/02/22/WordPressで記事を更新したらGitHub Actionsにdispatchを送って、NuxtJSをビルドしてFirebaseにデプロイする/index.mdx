@@ -1,0 +1,118 @@
+---
+layout: "@layouts/Blog.astro"
+title: "WordPressで記事を更新したらGitHub Actionsにdispatchを送って、NuxtJSをビルドしてFirebaseにデプロイする"
+head: "blog"
+date: "2021-02-22"
+archives: ["2021/02"]
+categories:
+  - 開発
+tags:
+  - github
+  - github actions
+  - firebase
+  - nuxst
+  - wordpress
+  - webhook
+image: /images/jamstack.png
+---
+
+import actionLog from "./2021-02-03_10-40-02.png";
+
+先日とあるサイトを Jamstack で制作していて、最初は Netlify でいいやって思ったんですが、記事多すぎて 1 ヶ月のビルド時間が 300h を超えちゃう問題が発生。
+
+有料プランも検討しましたが、Netlify って日本からだと微妙に遅い……。というわけで、他のホスティングサービスを検討する事に。
+
+- Netlify
+- Vercel
+- Firebase
+- 普通にレンタルサーバーに lftp
+
+最初は Netlify じゃなくて Vercel がいいよね！ と思っていたのですが、Vercel は Organization のリポジトリは有料（$20/月）。
+
+Vercel 早くて簡単だから魅力的だけど、制作しているサイトの規模的に月$20 はちょっと重い。
+
+この段階で普通にレンタルサーバーに lftp しちゃった方が早くね？と考えましたが、そしたらフォームとかどうする？となり、だったらサーバーレスな Functions がある Firebase Hosting がいいんじゃない？となり、Firebase を試すことにしました。
+
+## GitHub Actions と組み合わせるのが超ラクになっててビビる
+
+さて、最近 Firebase 触っていないので、またドキュメントを読みながら `npm install -g firebase-tools` をします。
+
+さっそく firebase init すると、今まではなかった「For which GitHub repository would you like to set up a GitHub workflow?」などの質問がきて、Hosting 前にビルドする時のコマンドを設定する質問などに答えるていくと、なんと GitHub Actions の workflow が生成されるようになっています……。
+
+やだ、これめっちゃ楽なんですけど……。
+
+いくつかの質問に答えるだけで、GitHub Actions でプルリクエストのプレビューサイトをビルドしてくれたり、マージされたらデプロイしてくれたりの workflow を生成してくれます。
+
+## Wordpress から webhook で GitHub Actions に dispatch を送る && 2 回 webhook が投げられてしまう問題を修正
+
+GitHub Actions のカンタンさと、Firebase の相変わらずにスピードに感動していると、ある事を思いだします。
+
+Netlify や Vercel だと、webhook を受け取ってくれてリビルドをしてくれていたのですが、ビルドが GitHub Actions になると、それがありません。すっかり忘れていました 😰
+
+なので、さっそく Wordpress から GitHub Actions を発火させる方法を探していると、Nuxt ではなく Gridsome ですが、Wordpress と GitHub Actions でビルドしてる方がいらっしゃいました。
+
+[WordPress で記事を投稿したら GitHub Actions 経由で Gridsome のビルドをする。 - return $lock;](https://retrorocket.biz/archives/1606)
+
+この記事を参考に、Wordpress プラグインを書いてみました。
+
+```php
+<?php
+/**
+ * Plugin Name: GitHub Actions build hook
+ */
+
+add_action('publish_post', 'nb_webhook_post', 10, 2);
+
+function nb_webhook_post($post_id, $post) {
+  if ( !(defined( 'REST_REQUEST' ) && REST_REQUEST )) {
+    $header = [
+      'Authorization: token ここにGitHubのPersonalTokenを書きます',
+      'Accept: application/vnd.github.everest-preview+json',
+      'User-Agent: WordPress_webhook_post'
+    ];
+    $data = [
+      'event_type' => 'WordPress_webhook',
+    ];
+    if ($post->post_status === 'publish') {
+      $url = curl_init('https://api.github.com/repos/ユーザー名/リポジトリ名/dispatches');
+      curl_setopt($url, CURLOPT_CUSTOMREQUEST, 'POST');
+      curl_setopt($url, CURLOPT_RETURNTRANSFER, true);
+      curl_setopt($url, CURLOPT_HEADER, true);
+      curl_setopt($url, CURLOPT_POSTFIELDS, json_encode($data));
+      curl_setopt($url, CURLOPT_HTTPHEADER, $header);
+      curl_exec($url);
+    }
+  }
+}
+?>
+```
+
+最初は記事にある php を参考にそのまま書いていたのですが、どうも publish_post って記事更新時に何度も実行されているらしく、一度記事を更新すると、
+
+<img src={actionLog} />
+
+こんな感じで 2 個とか 4 個とかビルドが走ってしまう問題が……ｗ
+
+こらアカンというわけで、「wordpress publish_post twice」などで検索してみると、
+
+[publish_post hook trigger twice when I publish post | WordPress.org](https://wordpress.org/support/topic/publish_post-hook-trigger-twice-when-i-publish-post/)
+
+あーやっぱ同じ悩みもってる人たくさんいるじゃん……ｗ
+
+remove_action()で処理するのはなんか気持ち悪いので、記事内にある`if ( !(defined( 'REST_REQUEST' ) && REST_REQUEST ))`を試してみたところ、無事 1 回だけ webhook が飛んでくるようになりました 😆
+
+## Firebase Functions は有料プランしか使えなくなってるっていうね……。
+
+というわけで、次はさっそくお問い合わせフォーム部分を開発だ！と思って、function を init しようとすると、Blaze プラン（従量課金タイプのプラン）にアップグレードしないと使えなくなったんでよろしく！というメッセージが……。
+
+なんてこった……。Functions があるから Firebase 選んだのに……ｗ 以前は無料プランで使えていたので、使えるものだと思っていました。
+
+とりあえず、これ以上時間もなかったので、formspree というフォームを簡単に設置できる SaaS を使って実装する事にしました。
+
+[Custom Forms with No Server Code | Formspree](https://formspree.io/)
+
+---
+
+当初のフォームが簡単にできそうだからという問題はアレでしたが、Wordpress から自由に webhook を投げられる事が分かったので、今後ホスティングサービスが変わっても安心です 😃
+
+それでは。
