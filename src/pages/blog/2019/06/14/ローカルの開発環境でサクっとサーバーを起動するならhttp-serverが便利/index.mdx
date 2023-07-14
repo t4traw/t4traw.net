@@ -1,0 +1,47 @@
+---
+layout: "@layouts/Blog.astro"
+title: "ローカルの開発環境でサクっとサーバーを起動するならhttp-serverが便利"
+head: "blog"
+date: "2019-06-14"
+archives: ["2019/06"]
+categories:
+  - 開発
+tags:
+  - node
+  - javascript
+  - json
+---
+
+import ss from "./oJTeNvBnGZ5cZHJ5vwtDsyr8EfhRXXq3.png";
+
+最近、仕事でいろいろなデータを json から取得・生成するコードを書いています。
+
+ローカルで javascript を書いて json を読み込む時、html ファイルを単純にブラウザで開いて確認しようとすると、プロトコルが'file://'なので javascript で fetch API を使おうとすると、「URL scheme must be "http" or "https" for CORS request.」と怒られてしまいます。
+
+なので、手元で WEB サーバーを起動しないといけません。常に ruby の sinatra をサクっと起動している環境だったので、そこに放り込んで適当に確認していたのですが、他のメンバーは ruby 入っていない環境もあるので、全員入ってる node でサクっと起動する方法ないかな？と探してみたら、http-server というのが非常に便利で感動しました。
+
+[http-server - npm](https://www.npmjs.com/package/http-server)
+
+## インストールと簡単な使い方
+
+まずインストールします。
+
+```sh
+$ npm i http-server
+```
+
+そして、起動するだけです。
+
+```sh
+$ npx http-server
+```
+
+これで localhost:8080 にアクセスすると、ファイルやディレクトリの一覧が表示されます。
+
+<img src={ss} />
+
+あとはファイルをクリックするだけ。超カンタン！なんで今まで使わなかったんだろう orz
+
+便利なので、これは global に入れてもいいかもしれませんね。
+
+それでは。

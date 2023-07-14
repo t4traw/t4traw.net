@@ -1,0 +1,89 @@
+---
+layout: "@layouts/Blog.astro"
+title: "Let's Encryptで証明書の更新コマンド(certbot renew)でエラーが出た時の対処方法"
+head: "blog"
+date: "2019-07-16"
+archives: ["2019/07"]
+categories:
+  - 開発
+tags:
+  - centos
+  - linux
+  - let's encrypt
+---
+
+import Amazon from "@components/Amazon.astro";
+
+ちょいちょい「ん？」となる事があるので、覚書。Let's Encrypt の証明書の期限更新コマンド`certbot renew`でエラーが出た時の対処方法です。
+
+```sh
+$ sudo certbot renew
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Processing /etc/letsencrypt/renewal/YOUR_DOMAIN.conf
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Cert is due for renewal, auto-renewing...
+Plugins selected: Authenticator standalone, Installer None
+Starting new HTTPS connection (1): acme-v02.api.letsencrypt.org
+Renewing an existing certificate
+Performing the following challenges:
+http-01 challenge for YOUR_DOMAIN
+Cleaning up challenges
+Attempting to renew cert (YOUR_DOMAIN) from /etc/letsencrypt/renewal/YOUR_DOMAIN.conf produced an unexpected error: Problem binding to port 80: Could not bind to IPv4 or IPv6.. Skipping.
+All renewal attempts failed. The following certs could not be renewed:
+  /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem (failure)
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+All renewal attempts failed. The following certs could not be renewed:
+  /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem (failure)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+1 renew failure(s), 0 parse failure(s)
+```
+
+これは、Let's Encrypt の期限更新（取得の時もそうだけど）の際に 80 ポートと 443 ポートを使うので、それらのポートを使っているソフトウェアを停止している必要があります。
+
+```sh
+$ sudo service httpd stop
+Redirecting to /bin/systemctl stop httpd.service
+```
+
+その状態で再度更新コマンドを打ってあげます。
+
+```sh
+$ certbot renew
+Saving debug log to /var/log/letsencrypt/letsencrypt.log
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Processing /etc/letsencrypt/renewal/YOUR_DOMAIN.conf
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+Cert is due for renewal, auto-renewing...
+Plugins selected: Authenticator standalone, Installer None
+Starting new HTTPS connection (1): acme-v02.api.letsencrypt.org
+Renewing an existing certificate
+Performing the following challenges:
+http-01 challenge for YOUR_DOMAIN
+Waiting for verification...
+Cleaning up challenges
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+new certificate deployed without reload, fullchain is
+/etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Congratulations, all renewals succeeded. The following certs have been renewed:
+  /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem (success)
+- - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+```
+
+WEB サーバーを使っているサーバーの場合は再度起動する||post-hook で自動的に再起動するよう設定しておきましょう。
+
+それでは。
+
+<Amazon
+  asin="B009NNZJSS"
+  title="なれる！SE ２週間でわかる？ＳＥ入門 (電撃文庫)"
+/>

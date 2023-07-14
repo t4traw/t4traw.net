@@ -1,0 +1,163 @@
+---
+layout: "@layouts/Blog.astro"
+title: "AWS LambdaでRubyスクリプトをCloudWatchで定期実行する"
+head: "blog"
+date: "2019-09-19"
+archives: [2019/09]
+categories:
+  - 開発
+tags:
+  - ruby
+  - aws
+  - lambda
+  - cloudwatch
+---
+
+import Amazon from "@components/Amazon.astro";
+import lambda_ss1 from "./20190919-151826.jpg";
+import lambda_ss2 from "./20190919-154636.jpg";
+import lambda_ss3 from "./20190919-155335.jpg";
+import cloudwatch_ss1 from "./20190919-155515.jpg";
+import cloudwatch_ss2 from "./20190919-155605.jpg";
+import cloudwatch_ss3 from "./20190919-155836.jpg";
+
+AWS Lambda で ruby スクリプトを登録し、CloudWatch で定期的に実行というのを、よく作っているので書いておきます。
+
+今回書いた AWS Lambda で ruby のスクリプト（標準以外の gem を使うパターン）のサンプルは[t4traw/lambda-ruby-template](https://github.com/t4traw/lambda-ruby-template)に push しておきました。
+
+まず、実際に書く ruby のコードの注意点として、
+
+- 関数単位で実行するので、必要な処理は関数にまとめておく
+- その関数の引数にを`(event:, context:)`としておく
+- gem を使う場合、その gem も zip でまとめてアップロードしないといけないので、ローカルにインストールする（つまり`bundle install --path vendor/bundle`にしておく必要アリ）
+
+といったところでしょうか。今回は Slack へランダムな文字列を定期的にポストするシンプルなコードを Lambda と CloudWatch で実装したいと思います。
+
+## Ruby は一応 2.5.0 をインストールしておく
+
+AWS Lambda の ruby ランタイムは 2.5.0 なので、開発環境も一応 2.5.0 にしておきます。僕の場合は rbenv ですので、こんな具合にしておきます。
+
+```sh
+$ rbenv install 2.5.0
+$ rbenv local 2.5.0
+```
+
+## gem をインストールする
+
+ruby2.6 以上だと bundler は標準だったけど、2.5.0 は標準ではないので、まずは bundler をインストールします。で、bundle init します。
+
+```sh
+$ gem i bundler
+$ bundle init
+```
+
+Gemfile に必要な gem を書きます。
+
+```ruby
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
+
+gem "slack-notifier"
+```
+
+そしたら、bundle install します。上にもありましたが、あとで gem ごとパッケージしないといけないのでローカルにインストールする必要があります。
+
+```sh
+$ bundle install --path vendor/bundle
+```
+
+## 実際にコードを書く
+
+Slack に SecureRandom で生成した文字列を Slack にポストするだけなので、とくに難しいことはありません 😁
+
+Slack の WEBHOOK_URL は各自カスタムインテグレーションで生成してくださいませ。
+
+```ruby
+require 'slack-notifier'
+require 'securerandom'
+
+WEBHOOK_URL = 'YOUR_WEBHOOK_URL'
+
+def foobar(event:, context:)
+  notifier = Slack::Notifier.new(WEBHOOK_URL)
+  notifier.ping SecureRandom.hex(16)
+end
+```
+
+試しに、foobar とか書いて、`bundle exec ruby app.rb`で実行してみてください。
+
+## AWS CLI のセットアップ
+
+AWS CLI を使うので、brew でインストールします。
+
+```sh
+$ brew install awscli
+```
+
+インストールが終わったら、IAM で Lambda, CloudWatch にアクセスができるグループ＆ユーザーを作成し、認証を開始します。
+
+途中リージョンを聞かれるので、`ap-northeast-1`（東京リージョン）を指定しておきます。output format はデフォで構わないので、何も入力せずに Enter を押しておきます。
+
+```sh
+$ aws configure
+```
+
+## デプロイする
+
+Lambda で関数を作成しておきます。
+
+<img src={lambda_ss1} />
+
+今回作った物を zip でパッケージします。
+
+```sh
+$ zip -r function.zip app.rb vendor
+```
+
+そして、AWS CLI でデプロイします。--function-name は適宜変更してください。
+
+```sh
+$ aws lambda update-function-code --function-name 上で作った関数名 --zip-file fileb://function.zip
+```
+
+デプロイできたら Lambda の画面で確認し、イベントハンドラを file_name.function_name に変更し、保存します。
+
+<img src={lambda_ss2} />
+
+そしたら、試しにスクリプトを lambda 上で実行します。画面上部のテストボタンをおして、パラメーターはとりあえず空の hash で作成し、実行してみます。
+
+<img src={lambda_ss3} />
+
+無事、動きました 😄
+
+## CloudWatch で定期実行する
+
+トリガーを追加をクリックして、CloudWatch Events を追加します。
+
+<img src={cloudwatch_ss1} />
+<img src={cloudwatch_ss2} />
+
+で、新規ルールの作成をし、ルール名と説明とスケジュールを登録します。スケジュールは cron 式で書けるのですが、日にちか曜日を指定しない場合は?で入力する必要があったりするので、詳しくはドキュメントを参照してください。
+
+[ルールのスケジュール式 - Amazon CloudWatch Events](https://docs.aws.amazon.com/ja_jp/AmazonCloudWatch/latest/events/ScheduledEvents.html#CronExpressions)
+
+今回は毎週水曜日の日本時間 17 時に実行してほしいので、`cron(0 8 ? * WED *)`といった感じに書きます。時間は GMT なんで注意してください。
+
+<img src={cloudwatch_ss3} />
+
+最後に保存（追加ボタンを押す）を忘れないように 👍
+
+---
+
+以上、簡単な Lambda と CloudWatch の定期実行の方法でした！
+
+一番得意な ruby でサクっと lambda のコードを作れるのが本当に嬉しいですｗ
+
+また、今までは Heroku Scheduler でなんとかやっていたのですが、Heroku Scheduler は毎分、毎時、毎日のどれかしか選べない……。CloudWatch は cron 式で定期実行でき、他にも CloudWatch で監視している ○○ をフラグに実行など、柔軟な方法を選べるのが最高です！
+
+それでは 👐
+
+<Amazon asin="B0764C5MT5" title="AWS Lambda実践ガイド" />
