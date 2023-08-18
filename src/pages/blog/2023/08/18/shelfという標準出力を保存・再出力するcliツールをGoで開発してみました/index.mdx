@@ -1,0 +1,126 @@
+---
+layout: "@layouts/Blog.astro"
+title: "shelfという標準出力を保存・再出力するcliツールをGoで開発してみました"
+head: "blog"
+date: "2023-08-18"
+archives: ["2023/08"]
+categories:
+  - 開発
+tags:
+  - Go
+  - cli
+  - brew
+  - badgerDB
+---
+
+ターミナルで標準出力や文字列をサクっと保存して取り出せるツールが欲しかったので、勉強がてら Go で開発し、それを brew でインストールできるまでやってみました！
+
+やはり簡単にバイナリを作って配布できる Go は便利ですね。更にリリースするためのツール類もよくできていて、brew tap でインストールする事ができるようになりました 😌
+
+```sh
+$ brew install t4traw/shelf/shelf
+```
+
+暮らしい動作などは README を見てください！
+
+[t4traw/shelf: CLI String Storage](https://github.com/t4traw/shelf)
+
+## 実装など
+
+cli ツールを作るために、まずはどういうコマンドにしようか考えます。
+
+```sh
+$ shelf set books --text my_books.txt
+```
+
+こんな感じで、保存したい文字列のファイルを渡して保存するイメージで作り始めました。しかし、これだと cli ツールを組みわせる時に汎用性がないなと。
+
+```sh
+$ echo my_books.txt | shelf set books
+```
+
+こういう形で標準出力を受け取って保存する形にすれば、ファイルに限らず保存できそう！
+
+そして出力は、
+
+```sh
+$ shelf get books
+```
+
+これで標準出力できるようにすれば、peco などに渡して便利に使えそう！🥳
+
+## cli 開発のフレームワークは cobra で
+
+cli ツールを作るにあたり、まずはツールを作るためのフレームワークを調べました。
+
+みんなの Go 言語では michellh/cli がおすすめされていましたが、第 2 引数をうけとる事もあり拡張もしやすそうな cobra を選んでみました。
+
+[spf13/cobra: A Commander for modern Go CLI interactions](https://github.com/spf13/cobra)
+
+```sh
+$ cobra-cli init [app]
+```
+
+で初期テンプレートを作ってくれ、
+
+```sh
+$ cobra-cli add foobar
+```
+
+でコマンドを追加（そのコマンドのファイルを作成）でき、コマンドで実行したい処理を追加していく形です！
+
+## db には badgerDB を採用
+
+受け取った標準入力を保存しておく方法はどうしようかなと、軽量でポータブルなものが良さそうなんだけどなぁと思って調べていたら、ローカルで動く埋め込み可能な KV 型 DB の badgerDB というモノを知りました。
+
+[dgraph-io/badger: Fast key-value DB in Go.](https://github.com/dgraph-io/badger)
+
+おー、なにこれ面白そう！ちょっと触ってみたらいい感じに動いたので、こちらを採用してみる事にしました。
+
+```go
+opts := badger.DefaultOptions("./foobar.db")
+opts.Logger = nil
+db, err := badger.Open(opts)
+```
+
+とするだけで、db がなかったら生成してくれます。ちなみに Logger を nil にしない場合は db の動作ログが表示されるので、開発段階だったらここは無いほうが良いですね。
+
+db への書き込みは
+
+```go
+err = db.Update(func(txn *badger.Txn) error {
+    err := txn.Set([]byte("my_key"), "sample text")
+    return err
+})
+```
+
+そして、それを
+
+```go
+err := db.View(func(txn *badger.Txn) error {
+    item, err := txn.Get([]byte("my_key"))
+    if err != nil {
+        log.Fatalf("Error getting key %s: %v", "my_key", err)
+    }
+
+    val, err := item.ValueCopy(nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Println(val)
+    return nil
+})
+```
+
+で簡単にできます。この取り出しの時や、トランザクションなどの細かい部分は公式ドキュメントを参照してください 🤲
+
+[Badgerdb documentation —](https://dgraph.io/docs/badger/)
+
+## brew tap でインストールできるようになるまで
+
+無事コマンドなどの作成ができたので、これを簡単にインストールできるようにしたいなぁと思い、brew コマンドでインストールできるようにする方法を調べてると、こちらの記事が非常に丁寧に解説されています。
+
+[Go で書いた CLI ツールを GitHub Actions と GoReleaser を使って brew コマンドでインストールできるようにした - michimani.net](https://michimani.net/post/development-publish-cli-tool-to-homebrew/)
+
+他にもネットに色々な方法が紹介されていますが、ツールのメインのリポジトリから GitHub Actions で homebrew 用のリポジトリを触るので、TOKEN は必要そうです。
