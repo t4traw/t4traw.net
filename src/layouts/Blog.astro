@@ -6,8 +6,7 @@ export interface Props {
 const { frontmatter } = Astro.props;
 
 import HeaderNav from "@components/HeaderNav.astro";
-import "../styles/common.scss";
-import "../styles/baloon.scss";
+import "../styles/index.scss";
 ---
 
 <!DOCTYPE html>
@@ -18,14 +17,6 @@ import "../styles/baloon.scss";
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
     <title>{frontmatter.title || frontmatter.head} - t4traw.net</title>
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/@exampledev/new.css@1.1.2/new.min.css"
-    />
-    <link
-      rel="stylesheet"
-      href="https://newcss.net/theme/terminal.css"
-    />
   </head>
   <body>
     <HeaderNav />
