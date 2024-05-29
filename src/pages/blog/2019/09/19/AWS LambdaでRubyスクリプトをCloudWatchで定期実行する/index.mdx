@@ -14,12 +14,12 @@ tags:
 ---
 
 import Amazon from "@components/Amazon.astro";
-import lambda_ss1 from "./20190919-151826.jpg";
-import lambda_ss2 from "./20190919-154636.jpg";
-import lambda_ss3 from "./20190919-155335.jpg";
-import cloudwatch_ss1 from "./20190919-155515.jpg";
-import cloudwatch_ss2 from "./20190919-155605.jpg";
-import cloudwatch_ss3 from "./20190919-155836.jpg";
+import lambda_ss1 from "./_20190919-151826.jpg";
+import lambda_ss2 from "./_20190919-154636.jpg";
+import lambda_ss3 from "./_20190919-155335.jpg";
+import cloudwatch_ss1 from "./_20190919-155515.jpg";
+import cloudwatch_ss2 from "./_20190919-155605.jpg";
+import cloudwatch_ss3 from "./_20190919-155836.jpg";
 
 AWS Lambda で ruby スクリプトを登録し、CloudWatch で定期的に実行というのを、よく作っているので書いておきます。
 
@@ -109,7 +109,7 @@ $ aws configure
 
 Lambda で関数を作成しておきます。
 
-<img src={lambda_ss1} />
+<img src={lambda_ss1.src} />
 
 今回作った物を zip でパッケージします。
 
@@ -125,11 +125,11 @@ $ aws lambda update-function-code --function-name 上で作った関数名 --zip
 
 デプロイできたら Lambda の画面で確認し、イベントハンドラを file_name.function_name に変更し、保存します。
 
-<img src={lambda_ss2} />
+<img src={lambda_ss2.src} />
 
 そしたら、試しにスクリプトを lambda 上で実行します。画面上部のテストボタンをおして、パラメーターはとりあえず空の hash で作成し、実行してみます。
 
-<img src={lambda_ss3} />
+<img src={lambda_ss3.src} />
 
 無事、動きました 😄
 
@@ -137,8 +137,8 @@ $ aws lambda update-function-code --function-name 上で作った関数名 --zip
 
 トリガーを追加をクリックして、CloudWatch Events を追加します。
 
-<img src={cloudwatch_ss1} />
-<img src={cloudwatch_ss2} />
+<img src={cloudwatch_ss1.src} />
+<img src={cloudwatch_ss2.src} />
 
 で、新規ルールの作成をし、ルール名と説明とスケジュールを登録します。スケジュールは cron 式で書けるのですが、日にちか曜日を指定しない場合は?で入力する必要があったりするので、詳しくはドキュメントを参照してください。
 
@@ -146,7 +146,7 @@ $ aws lambda update-function-code --function-name 上で作った関数名 --zip
 
 今回は毎週水曜日の日本時間 17 時に実行してほしいので、`cron(0 8 ? * WED *)`といった感じに書きます。時間は GMT なんで注意してください。
 
-<img src={cloudwatch_ss3} />
+<img src={cloudwatch_ss3.src} />
 
 最後に保存（追加ボタンを押す）を忘れないように 👍
 

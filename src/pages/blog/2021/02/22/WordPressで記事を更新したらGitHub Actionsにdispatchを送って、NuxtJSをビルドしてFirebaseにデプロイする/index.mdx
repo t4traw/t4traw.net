@@ -15,7 +15,7 @@ tags:
   - webhook
 ---
 
-import actionLog from "./2021-02-03_10-40-02.png";
+import actionLog from "./_2021-02-03_10-40-02.png";
 
 先日とあるサイトを Jamstack で制作していて、最初は Netlify でいいやって思ったんですが、記事多すぎて 1 ヶ月のビルド時間が 300h を超えちゃう問題が発生。
 
@@ -88,7 +88,7 @@ function nb_webhook_post($post_id, $post) {
 
 最初は記事にある php を参考にそのまま書いていたのですが、どうも publish_post って記事更新時に何度も実行されているらしく、一度記事を更新すると、
 
-<img src={actionLog} />
+<img src={actionLog.src} />
 
 こんな感じで 2 個とか 4 個とかビルドが走ってしまう問題が……ｗ
 

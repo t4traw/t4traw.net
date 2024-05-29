@@ -10,12 +10,12 @@ tags:
   - ci
 ---
 
-import hero from "./hero.png";
-import setting from "./setting_secrets.png";
+import hero from "./_hero.png";
+import setting from "./_setting_secrets.png";
 
 CI、昔は wercker や CircleCI など使っていましたが、基本的な CI はもうすべて GitHub Action に移行しました（個人の gem の CI はまだ TravisCI を使っていますが）。
 
-<img src={hero} alt="" />
+<img src={hero.src} alt="" />
 
 Firebase などの init 時にサクっと作ってくれるし、config も分かりやすくて GitHub Action 大好きです 😆
 
@@ -23,7 +23,7 @@ Firebase などの init 時にサクっと作ってくれるし、config も分�
 
 まず GitHub の Settings の中にある Secrets で、新しく環境変数を設定します。
 
-<img src={setting} alt="" />
+<img src={setting.src} alt="" />
 
 で、このままでは GitHub Action で使えません 😂
 
