@@ -12,13 +12,14 @@
     "new": "node bin/new_post.js"
   },
   "dependencies": {
-    "@astrojs/mdx": "^0.12.1",
+    "@astrojs/mdx": "^3.0.1",
     "@astrojs/prefetch": "^0.2.3",
-    "astro": "^1.6.14",
+    "astro": "^4.9.2",
     "date-utils": "^1.2.21",
+    "textlint": "^14.0.4",
     "to-snake-case": "^1.0.0"
   },
   "devDependencies": {
-    "sass": "^1.56.2"
+    "sass": "^1.77.2"
   }
 }
