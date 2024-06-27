@@ -5,11 +5,11 @@ export interface Props {
 
 const { frontmatter } = Astro.props;
 
-import HeaderNav from "@components/HeaderNav.astro";
+import NavBar from "@components/NavBar.astro";
 import "../styles/index.scss";
 ---
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
@@ -17,13 +17,20 @@ import "../styles/index.scss";
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
     <title>{frontmatter.title || frontmatter.head} - t4traw.net</title>
+    <link rel="stylesheet" href="https://fonts.xz.style/serve/inter.css" />
   </head>
-  <body>
-    <HeaderNav />
+  <body class="bg-zinc-800">
+    <NavBar />
     <main>
-      <h1>{frontmatter.title}</h1>
-      <small>{frontmatter.date}</small>
-      <slot />
+      <div
+        class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+      >
+        <div class="prose prose-invert">
+          <h1>{frontmatter.title}</h1>
+          <small>{frontmatter.date}</small>
+          <slot />
+        </div>
+      </div>
     </main>
     <footer>
       <p>

@@ -1,0 +1,97 @@
+---
+import Layout from "@layouts/Layout.astro";
+---
+
+<Layout title="Home">
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20 justify-center gap-4 md:gap-12 flex flex-col md:flex-row md:h-[70vh]"
+  >
+    <div class="relative md:order-9 flex">
+      <img class="m-auto" src="images/avatar.png" />
+    </div>
+    <div class="grow shrink basis-0 flex-col justify-center gap-2 inline-flex">
+      <div class="self-stretch h-80 flex-col justify-center gap-6 flex">
+        <div class="self-stretch h-20 flex-col justify-center gap-2 flex">
+          <div
+            class="self-stretch text-neutral-200 text-base font-normal font-['Inter'] leading-normal"
+          >
+            Software Engineer & Designer
+          </div>
+          <div
+            class="self-stretch text-white text-4xl font-bold font-['Inter']"
+          >
+            もりやまたつろー
+          </div>
+        </div>
+        <div
+          class="self-stretch text-white text-md font-medium font-['Inter'] leading-loose"
+        >
+          音楽と珈琲とサウナと釣りが好きです🤟 <br />
+          Ruby, Go, TypeScriptを書いてます😃 <br />
+          WEB開発、WEBデザイン、自動化などをよくやっています🚀
+        </div>
+        <div
+          class="self-stretch justify-start items-center gap-2.5 inline-flex"
+        >
+          <div
+            class="text-neutral-200 text-xl font-normal font-['Inter'] leading-loose"
+          >
+            Skills:
+          </div>
+          <div class="">
+            <img src="images/skills.svg" class="h-6" alt="" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr />
+
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+  >
+    <div class="prose prose-invert">
+      <h2 class="">Tatsuro Moriyama</h2>
+      <p>
+        愛知でウェブデザイン・ウェブアプリケーション開発のお仕事をしております。
+      </p>
+      <p>
+        サーバーサイド、フロントエンド、UI/UXデザインなど色々やっています。いつか学んだ知識や技術で人の役にたつ事ができたらいいなと、日々勉強しています。
+      </p>
+      <p>
+        Macでの開発ツールや、リモートワークで便利なサービスなどを探すのが趣味です。コードに関すること以外にも、そういったことも紹介していきたいと思います。
+      </p>
+      <ul class="list-disc">
+        <li>所在地: 愛知県豊橋市</li>
+        <li>お問い合わせ: t4traw@gmail.com</li>
+        <li>事業内容: ウェブ制作全般、ウェブアプリケーション開発</li>
+      </ul>
+      <h3>SNS</h3>
+      <ul class="list-disc">
+        <li>
+          <a href="https://twitter.com/t4traw" target="_blank">Twitter</a>
+        </li>
+        <li>
+          <a href="https://github.com/t4traw" target="_blank">GitHub</a>
+        </li>
+        <li>
+          <a href="https://www.instagram.com/t4trawm/" target="_blank"
+            >Instagram</a
+          >
+        </li>
+      </ul>
+      <h3>すきなこと</h3>
+      <ul class="list-desc">
+        <li>音楽</li>
+        <li>コーヒー</li>
+        <li>サウナ</li>
+        <li>アルコール</li>
+        <li>釣り</li>
+        <li>キャンプ</li>
+        <li>ビデオゲーム</li>
+        <li>ドイツゲーム・アナログゲーム</li>
+      </ul>
+    </div>
+  </div>
+</Layout>
