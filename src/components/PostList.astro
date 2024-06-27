@@ -1,10 +1,8 @@
 ---
-const posts = await Astro.glob("../pages/blog/**/*.mdx");
+const posts = await Astro.glob('../pages/blog/**/*.mdx');
 ---
 
-<div
-  class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
->
+<div class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20">
   <div class="prose prose-invert">
     {
       posts.reverse().map((post) => (

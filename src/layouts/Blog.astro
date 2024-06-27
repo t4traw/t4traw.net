@@ -5,8 +5,8 @@ export interface Props {
 
 const { frontmatter } = Astro.props;
 
-import NavBar from "@components/NavBar.astro";
-import "../styles/index.scss";
+import NavBar from '@components/NavBar.astro';
+import '../styles/index.scss';
 ---
 
 <!doctype html>
@@ -22,9 +22,7 @@ import "../styles/index.scss";
   <body class="bg-zinc-800">
     <NavBar />
     <main>
-      <div
-        class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
-      >
+      <div class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20">
         <div class="prose prose-invert">
           <h1>{frontmatter.title}</h1>
           <small>{frontmatter.date}</small>
@@ -34,9 +32,7 @@ import "../styles/index.scss";
     </main>
     <footer>
       <p>
-        Created by <a href="https://twitter.com/t4traw" target="_blank"
-          >@t4traw</a
-        >
+        Created by <a href="https://twitter.com/t4traw" target="_blank">@t4traw</a>
       </p>
     </footer>
   </body>
