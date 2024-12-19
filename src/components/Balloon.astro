@@ -8,9 +8,84 @@ export interface Props {
 const { name, body, layout } = Astro.props;
 ---
 
-<div class=`balloon_${layout}`>
-  <div class="img">
+<div class=`baloon balloon-${layout}`>
+  <div class="avatar-block">
     <img src=`/images/${name}.png` />
   </div>
   <p>{body}</p>
 </div>
+
+<style lang="scss">
+  .baloon {
+    color: rgb(39 39 42 / var(--tw-bg-opacity, 1));
+    position: relative;
+    padding: 20px;
+    border-radius: 10px;
+    margin: 2rem 0;
+
+    &::before {
+      content: '';
+      position: absolute;
+      display: block;
+      width: 0;
+      height: 0;
+      top: 20px;
+      border-top: 15px solid transparent;
+      border-bottom: 15px solid transparent;
+    }
+
+    p {
+      margin: 0;
+    }
+  }
+
+  .balloon-right {
+    --balloon_right_color: #d9f3ee;
+    --balloon_right_margin: 90px;
+    background-color: var(--balloon_right_color);
+    margin-left: var(--balloon_right_margin);
+
+    &::before {
+      left: -15px;
+      border-right: 15px solid var(--balloon_right_color);
+    }
+
+    .avatar-block {
+      position: absolute;
+      left: calc(-1 * var(--balloon_right_margin));
+      top: 0;
+
+      img {
+        filter: none;
+        width: 65px;
+        border-radius: 100px;
+        margin-top: 0;
+      }
+    }
+  }
+
+  .balloon-left {
+    --balloon_left_color: #fff0ce;
+    --balloon_left_margin: 90px;
+    background-color: var(--balloon_left_color);
+    margin-right: var(--balloon_left_margin);
+
+    &::before {
+      right: -15px;
+      border-left: 15px solid var(--balloon_left_color);
+    }
+
+    .avatar-block {
+      position: absolute;
+      right: calc(-1 * var(--balloon_left_margin));
+      top: 0;
+
+      img {
+        filter: none;
+        width: 65px;
+        border-radius: 100px;
+        margin-top: 0;
+      }
+    }
+  }
+</style>
