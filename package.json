@@ -9,21 +9,23 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "new": "node bin/new_post.js"
+    "new": "node bin/new_post.js",
+    "update": "npx npm-check-updates -u"
   },
   "dependencies": {
-    "@astrojs/mdx": "^3.0.1",
-    "@astrojs/prefetch": "^0.2.3",
-    "@astrojs/tailwind": "^5.1.0",
-    "astro": "^4.9.2",
+    "@astrojs/mdx": "^4.0.2",
+    "@astrojs/prefetch": "^0.4.1",
+    "@astrojs/tailwind": "^5.1.3",
+    "astro": "^5.0.9",
     "date-utils": "^1.2.21",
-    "tailwindcss": "^3.4.4",
-    "textlint": "^14.0.4",
+    "npm-check-updates": "^17.1.11",
+    "tailwindcss": "^3.4.17",
+    "textlint": "^14.4.0",
     "to-snake-case": "^1.0.0"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.13",
-    "prettier-plugin-astro": "^0.14.0",
-    "sass": "^1.77.2"
+    "@tailwindcss/typography": "^0.5.15",
+    "prettier-plugin-astro": "^0.14.1",
+    "sass": "^1.83.0"
   }
 }
