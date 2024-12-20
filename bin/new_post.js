@@ -1,23 +1,19 @@
-import { promises as fs } from "fs";
-import snake from "to-snake-case";
-import _ from "date-utils";
+import { promises as fs } from 'fs';
+import snake from 'to-snake-case';
+import _ from 'date-utils';
 
 const today = new Date();
 const post_title = process.argv[2];
-const genPath = `src/pages/blog/${today.toFormat("YYYY/MM/DD")}/${post_title}`;
+const genPath = `src/pages/blog/${today.toFormat('YYYY/MM/DD')}/${post_title}`;
 const fileName = `index.mdx`;
 const postPath = `./${genPath}/${fileName}`;
 
 const frontMatter = `---
-layout: "@layouts/Blog.astro"
-title: "${process.argv[2]}"
-head: "blog"
-date: "${today.toFormat("YYYY-MM-DD")}"
-archives: ["${today.toFormat("YYYY/MM")}"]
-categories:
-  -
-tags:
-  -
+layout: '@layouts/Blog.astro'
+title: '${process.argv[2]}'
+head: 'blog'
+date: '${today.toFormat('YYYY-MM-DD')}'
+archives: ['${today.toFormat('YYYY/MM')}']
 ---
 `;
 
@@ -41,7 +37,7 @@ if (fileNotExist) {
   } catch (error) {
     console.error(error);
   }
-  console.log("Generated: ", postPath);
+  console.log('Generated: ', postPath);
 } else {
-  console.log("File existed: ", postPath);
+  console.log('File existed: ', postPath);
 }
