@@ -1,0 +1,68 @@
+---
+export interface Props {
+  file?: string;
+  url?: string;
+  categories?: unknown;
+  tags?: unknown;
+  limit?: number;
+}
+
+const { file, url, categories, tags, limit = 3 } = Astro.props;
+
+const modules = import.meta.glob<{ frontmatter: Record<string, any>; file: string; url?: string }>('../pages/blog/**/*.mdx', {
+  eager: true,
+});
+
+const toList = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && item.trim() !== '') : [];
+
+const stripSlash = (value?: string) => (value ?? '').replace(/\/$/, '');
+
+const currentCategories = toList(categories);
+const currentTags = toList(tags);
+
+// カテゴリー一致を3点、タグ一致を1点として関連度を出す。
+// 一致するものが足りない記事では score 0 の記事が新しい順に繰り上がる。
+const related = Object.values(modules)
+  .filter((post) => post.file !== file && stripSlash(post.url) !== stripSlash(url))
+  .map((post) => {
+    const frontmatter = post.frontmatter ?? {};
+    const categoryHits = toList(frontmatter.categories).filter((category) => currentCategories.includes(category)).length;
+    const tagHits = toList(frontmatter.tags).filter((tag) => currentTags.includes(tag)).length;
+
+    return { post, score: categoryHits * 3 + tagHits };
+  })
+  .sort((a, b) => b.score - a.score || String(b.post.frontmatter.date ?? '').localeCompare(String(a.post.frontmatter.date ?? '')))
+  .slice(0, limit);
+---
+
+{
+  related.length > 0 && (
+    <section class="not-prose flex flex-col gap-4">
+      <h2 class="text-xl font-bold text-white">関連記事</h2>
+      <ul class="flex flex-col gap-3">
+        {related.map(({ post }) => (
+          <li>
+            <a
+              class="flex flex-col gap-2 rounded-lg border border-zinc-700 bg-zinc-900/40 p-4 transition-colors hover:border-zinc-500 hover:bg-zinc-900/80"
+              href={post.url}
+              rel="prefetch"
+            >
+              <span class="font-bold text-white">{post.frontmatter.title}</span>
+              <span class="text-sm text-neutral-400">{post.frontmatter.date}</span>
+              {toList(post.frontmatter.tags).length > 0 && (
+                <span class="flex flex-wrap gap-2 text-xs text-neutral-400">
+                  {toList(post.frontmatter.tags)
+                    .slice(0, 5)
+                    .map((tag) => (
+                      <span>#{tag}</span>
+                    ))}
+                </span>
+              )}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}

@@ -14,6 +14,10 @@ title: '${process.argv[2]}'
 head: 'blog'
 date: '${today.toFormat('YYYY-MM-DD')}'
 archives: ['${today.toFormat('YYYY/MM')}']
+categories:
+  -
+tags:
+  -
 ---
 `;
 
