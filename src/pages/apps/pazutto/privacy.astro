@@ -1,0 +1,140 @@
+---
+import AppDoc from "@layouts/AppDoc.astro";
+---
+
+<AppDoc
+  title="プライバシーポリシー"
+  appName="pazutto"
+  appPath="/apps/pazutto"
+  updated="2026年9月21日"
+  description="iOS アプリ pazutto（ぱずっと）のプライバシーポリシー。個人情報の収集はなく、プレイ記録は端末内にのみ保存されます。"
+>
+  <p>
+    pazutto（ぱずっと。以下「本アプリ」）における利用者の情報の取り扱いについて、以下のとおり定めます。
+  </p>
+
+  <h2>要約</h2>
+  <p>
+    本アプリは<strong>利用者の個人情報を収集しません</strong>。プレイ記録や設定はすべて端末内にのみ保存され、開発者その他の第三者に送信されることはありません。広告や解析（アクセス解析・行動トラッキング）のための第三者SDKは一切組み込んでいません。
+  </p>
+
+  <h2>1. 開発者</h2>
+  <ul>
+    <li>開発者: もりやまたつろー（Tatsuro Moriyama）</li>
+    <li>所在地: 愛知県豊橋市</li>
+    <li>連絡先: <a href="mailto:t4traw@gmail.com">t4traw@gmail.com</a></li>
+  </ul>
+
+  <h2>2. 収集しない情報</h2>
+  <p>本アプリは、次の情報を収集・送信・保存しません。</p>
+  <ul>
+    <li>氏名・メールアドレス・電話番号・住所など、個人を識別できる情報</li>
+    <li>位置情報</li>
+    <li>連絡先・写真・カレンダー・マイク・カメラなどの端末内データ</li>
+    <li>広告識別子（IDFA）、およびトラッキングのための識別子</li>
+    <li>利用状況を開発者に送るための解析データ</li>
+  </ul>
+  <p>
+    App Tracking Transparency（トラッキングの許可）のダイアログを表示しないのは、本アプリがトラッキングを一切行わないためです。
+  </p>
+
+  <h2>3. 端末内に保存される情報</h2>
+  <p>
+    遊びの続きを保つため、次の情報を端末内（本アプリのサンドボックス領域）にのみ保存します。
+  </p>
+  <ul>
+    <li>パズルの進捗（解きかけの盤面、ヒントの使用回数など）</li>
+    <li>プレイ履歴（種目・レベル・クリアや失敗の結果・日時）</li>
+    <li>種目別および総合のレート</li>
+    <li>設定（BGM・効果音の状態、選択中の曲、難易度表示の有無など）</li>
+  </ul>
+  <p>
+    これらは iOS の標準機能（SwiftData および UserDefaults）によって保存され、外部に送信されることはありません。iCloud
+    などによる同期も行いません。本アプリを削除すると、これらの情報も端末から削除されます（削除後に復元する手段はありません）。
+  </p>
+
+  <h2>4. Game Center について</h2>
+  <p>本アプリは Apple の Game Center を利用します。</p>
+  <ul>
+    <li>
+      利用者が Game Center
+      にサインインしている場合、アバター写真とニックネーム（エイリアス）を読み取り、アプリ内のプロフィール表示に使用します。これらは画面への表示のために使うだけで、開発者が保存・送信・第三者提供することはありません。
+    </li>
+    <li>スコアの送信、リーダーボード、フレンド一覧、実績は使用していません。</li>
+    <li>
+      サインインは任意です。サインインしていない場合や認証に失敗した場合も、本アプリの機能は制限されません（レートと進捗は、いずれの場合も端末内で計算・保存されます）。
+    </li>
+    <li>
+      Game Center は Apple が提供するサービスです。Game Center
+      における情報の取り扱いについては、<a
+        href="https://www.apple.com/legal/privacy/ja/"
+        target="_blank"
+        rel="noopener noreferrer">Apple のプライバシーポリシー</a
+      >が適用されます。
+    </li>
+  </ul>
+
+  <h2>5. ネットワーク通信</h2>
+  <p>
+    本アプリ自体はネットワーク通信を行いません。パズルの問題データ・BGM・効果音はすべてアプリに同梱されており、オフラインで動作します。Game
+    Center のサインインに伴う通信は、iOS（Apple）が行うものです。
+  </p>
+
+  <h2>6. 広告・第三者の解析ツール</h2>
+  <p>
+    広告ネットワーク、アクセス解析、クラッシュ解析などの第三者SDKは組み込んでいません。
+  </p>
+
+  <h2>7. App Store を通じて開発者が受け取る情報</h2>
+  <p>
+    Apple から App Store Connect
+    を通じて、集計された販売・ダウンロード状況や、利用者が Apple
+    への共有を許可した場合の利用統計・クラッシュレポートが提供されることがあります。これらはいずれも
+    Apple
+    が集計・匿名化した情報であり、個人を識別できる情報は含まれません。共有の範囲は、iOS
+    の「設定 &gt; プライバシーとセキュリティ &gt; 解析および改善」から変更できます。
+  </p>
+
+  <h2>8. アプリ内課金</h2>
+  <p>
+    現在のバージョンにアプリ内課金はありません。将来的に導入する場合も、決済は
+    Apple（App Store）が処理し、クレジットカード番号などの決済情報が開発者に渡ることはありません。導入の際は本ポリシーを更新します。
+  </p>
+
+  <h2>9. 子どものプライバシー</h2>
+  <p>
+    本アプリは年齢を問わずご利用いただけます。前述のとおり個人情報を収集しないため、13歳未満の子どもから個人情報を収集することもありません。
+  </p>
+
+  <h2>10. 第三者提供</h2>
+  <p>
+    個人情報を収集していないため、第三者に提供する情報はありません。法令に基づく開示の求めがあった場合についても、開発者が保有している利用者の情報はありません。
+  </p>
+
+  <h2>11. お問い合わせ</h2>
+  <p>
+    本ポリシーおよび本アプリのプライバシーに関するご質問は、<a
+      href="mailto:t4traw@gmail.com">t4traw@gmail.com</a
+    > までご連絡ください。<a href="/apps/pazutto/support">サポートページ</a
+    >もあわせてご覧ください。
+  </p>
+
+  <h2>12. 本ポリシーの変更</h2>
+  <p>
+    本アプリの機能追加などに伴い本ポリシーを変更する場合は、変更後の内容をこのページに掲載します。重要な変更がある場合は、アプリの更新情報でもお知らせします。
+  </p>
+
+  <hr />
+
+  <h2>Summary (English)</h2>
+  <p>
+    pazutto collects no personal data. All gameplay progress, ratings, and
+    settings are stored only on your device (via SwiftData and UserDefaults) and
+    are never transmitted to the developer or any third party. The app contains
+    no advertising, analytics, or crash-reporting SDKs, performs no network
+    requests of its own, and does not track users. If you are signed in to Apple
+    Game Center, your avatar and nickname are read for on-device display only.
+    Deleting the app removes all stored data. Contact:
+    <a href="mailto:t4traw@gmail.com">t4traw@gmail.com</a>.
+  </p>
+</AppDoc>

@@ -1,0 +1,46 @@
+---
+// プライバシーポリシー・利用規約・サポートなど、アプリに付随する文書ページの共通枠。
+export interface Props {
+  title: string;
+  appName: string;
+  appPath: string;
+  updated?: string;
+  description?: string;
+}
+
+const { title, appName, appPath, updated, description } = Astro.props;
+
+import Layout from "@layouts/Layout.astro";
+---
+
+<Layout title={`${title} - ${appName} - t4traw.net`} description={description}>
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+  >
+    <nav class="mb-10 text-sm text-neutral-400 font-['Inter']">
+      <a class="hover:text-white hover:underline" href="/apps">App</a>
+      <span class="px-2">/</span>
+      <a class="hover:text-white hover:underline" href={appPath}>{appName}</a>
+      <span class="px-2">/</span>
+      <span class="text-neutral-300">{title}</span>
+    </nav>
+
+    <article class="prose prose-invert max-w-none">
+      <h1>{title}</h1>
+      {
+        updated && (
+          <p class="not-prose text-sm text-neutral-400">
+            最終更新日: {updated}
+          </p>
+        )
+      }
+      <slot />
+    </article>
+
+    <div class="mt-16 border-t border-zinc-700 pt-8">
+      <a class="text-neutral-400 hover:text-white hover:underline" href={appPath}
+        >← {appName} のページへもどる</a
+      >
+    </div>
+  </div>
+</Layout>

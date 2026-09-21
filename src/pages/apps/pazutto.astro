@@ -1,0 +1,214 @@
+---
+import Layout from "@layouts/Layout.astro";
+
+const puzzles = [
+  {
+    id: "numpre",
+    name: "ナンプレ",
+    summary: "空いたマスに 1〜9 を入れる、定番の数字パズル",
+  },
+  {
+    id: "queens",
+    name: "クイーンズ",
+    summary: "色わけされた盤面に、王冠をひとつずつならべる",
+  },
+  {
+    id: "shikaku",
+    name: "四角パズル",
+    summary: "数字の大きさの長方形で、盤面を切りわける",
+  },
+  {
+    id: "minesweeper",
+    name: "マインスイーパー",
+    summary: "数字をたよりに、地雷をさけてマスを開いていく",
+  },
+  {
+    id: "fences",
+    name: "フェンス",
+    summary: "点をつないで、ひとつの輪をつくる",
+  },
+  {
+    id: "binary",
+    name: "バイナリパズル",
+    summary: "2 種類の記号を、ルールどおりにならべる",
+  },
+];
+
+const features = [
+  {
+    title: "広告は出しません",
+    body: "全画面広告も、バナーも、動画リワードもありません。解いている途中で手が止まることがないようにしています。",
+  },
+  {
+    title: "答えは必ずひとつ",
+    body: "収録している問題はすべて、論理だけで一意に解けることを確認済みです。運で当てる場面や、行き詰まりはありません。",
+  },
+  {
+    title: "中級以上に厚みがあります",
+    body: "入門用の問題は入口として最小限に。歯ごたえのある中級〜最上級の問題を多めに用意しています。",
+  },
+  {
+    title: "レートで難しさが合っていく",
+    body: "解いた結果からレートを計算して、いまの実力に合ったレベルの問題を出します。数字を気にせず遊ぶこともできます。",
+  },
+  {
+    title: "毎日3問のデイリーチャレンジ",
+    body: "日付ごとに決まる3問が、毎日ちがう種目から出ます。ちょっとだけ遊びたい日の入口に。",
+  },
+  {
+    title: "数字と記号だけで解けます",
+    body: "言葉の知識や、チェス・将棋のような前提知識が要るパズルは入れていません。盤面にあるのは数字と記号だけなので、ルールを覚えたらすぐ考えはじめられます。",
+  },
+];
+---
+
+<Layout
+  title="pazutto（ぱずっと） - t4traw.net"
+  description="論理で必ず解けるパズル6種の詰め合わせ iOS アプリ「pazutto（ぱずっと）」。広告なし、オフラインで遊べます。"
+>
+  <!-- ヒーロー -->
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+  >
+    <div
+      class="flex flex-col md:flex-row md:items-center gap-8 md:gap-12 text-center md:text-left"
+    >
+      <img
+        src="/apps/pazutto/icon.png"
+        alt="pazutto のアプリアイコン"
+        width="160"
+        height="160"
+        class="mx-auto md:mx-0 h-28 w-28 md:h-40 md:w-40 shrink-0 rounded-[22%] shadow-2xl"
+      />
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <div
+            class="text-neutral-200 text-base font-normal font-['Inter'] leading-normal"
+          >
+            iOS App
+          </div>
+          <h1 class="text-white text-4xl md:text-5xl font-bold font-['Inter']">
+            pazutto
+          </h1>
+          <div class="text-neutral-400 text-lg font-['Inter']">ぱずっと</div>
+        </div>
+        <p class="text-white text-md font-medium font-['Inter'] leading-loose">
+          論理で必ず解けるパズル、6種の詰め合わせ。<br />
+          広告なし・オフラインで、じっくり考えられるアプリです。
+        </p>
+        <div
+          class="flex flex-wrap justify-center md:justify-start items-center gap-3"
+        >
+          <!-- TODO: App Store 公開後、ここをダウンロードリンクに差し替える -->
+          <span
+            class="rounded-full bg-[#FE5F55]/15 px-4 py-2 text-sm text-[#FE9A94]"
+            >App Store にて近日公開</span
+          >
+          <span class="text-sm text-neutral-400">iOS 18.0 以降 / iPhone</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- どんなアプリか -->
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+  >
+    <div class="prose prose-invert max-w-none">
+      <h2>どんなアプリ？</h2>
+      <p>
+        パズルアプリが好きでいろいろ試してきたのですが、「広告が多くて集中できない」「日本語対応が雑」「やさしい問題ばかりで歯ごたえがない」といった不満がだんだん溜まってきました。そこで、自分が遊びたいものを自分でつくることにしました。
+      </p>
+      <p>
+        収録しているのは、ナンプレ・クイーンズ・四角パズル・マインスイーパー・フェンス・バイナリパズルの6種目。どれも<strong
+          >答えがひとつに決まる問題だけ</strong
+        >を、自作の問題生成器でつくって同梱しています。エンドレスに続くタイプではないので、解けたら気持ちよく終われます。BGMと効果音も自作です。
+      </p>
+    </div>
+
+    <!-- 特徴 -->
+    <div class="mt-10 md:mt-16 grid grid-cols-1 md:grid-cols-2 gap-5">
+      {
+        features.map((feature) => (
+          <div class="rounded-2xl border border-zinc-700 bg-zinc-900/40 p-6">
+            <h3 class="text-white text-lg font-bold font-['Inter'] mb-2">
+              {feature.title}
+            </h3>
+            <p class="text-neutral-300 text-sm leading-relaxed">
+              {feature.body}
+            </p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- 収録パズル -->
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+  >
+    <div class="prose prose-invert max-w-none">
+      <h2>収録しているパズル</h2>
+    </div>
+
+    <div class="mt-8 md:mt-12 grid grid-cols-1 sm:grid-cols-2 gap-5">
+      {
+        puzzles.map((puzzle) => (
+          <div class="flex items-center gap-5 rounded-2xl border border-zinc-700 bg-zinc-900/40 p-5">
+            <img
+              src={`/apps/pazutto/puzzles/${puzzle.id}.png`}
+              alt={`${puzzle.name} のアイコン`}
+              width="64"
+              height="64"
+              class="h-16 w-16 shrink-0 rounded-xl"
+            />
+            <div class="flex flex-col gap-1">
+              <h3 class="text-white text-lg font-bold font-['Inter']">
+                {puzzle.name}
+              </h3>
+              <p class="text-neutral-300 text-sm leading-relaxed">
+                {puzzle.summary}
+              </p>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- 対応環境とリンク -->
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+  >
+    <div class="prose prose-invert max-w-none">
+      <h2>対応環境</h2>
+      <ul class="list-disc">
+        <li>対応OS: iOS 18.0 以降</li>
+        <li>対応端末: iPhone</li>
+        <li>言語: 日本語</li>
+        <li>価格: 無料</li>
+        <li>広告: なし</li>
+        <li>
+          ネットワーク: 不要（機内モードでも遊べます。Game Center
+          にサインインしていると、アバターとニックネームを表示します）
+        </li>
+      </ul>
+      <p class="text-neutral-400 text-sm">
+        今後のバージョンで、一部のレベルを有料プランにする予定があります。その時点で無料で遊べる範囲はアプリ内で明記します。
+      </p>
+
+      <h2>ドキュメント・お問い合わせ</h2>
+      <ul class="list-disc">
+        <li><a href="/apps/pazutto/privacy">プライバシーポリシー</a></li>
+        <li><a href="/apps/pazutto/terms">利用規約</a></li>
+        <li><a href="/apps/pazutto/support">サポート・お問い合わせ</a></li>
+      </ul>
+    </div>
+  </div>
+</Layout>
