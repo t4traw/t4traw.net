@@ -6,7 +6,7 @@ import AppDoc from "@layouts/AppDoc.astro";
   title="プライバシーポリシー"
   appName="pazutto"
   appPath="/apps/pazutto"
-  updated="2026年9月21日"
+  updated="2026年9月24日"
   description="iOS アプリ pazutto（ぱずっと）のプライバシーポリシー。個人情報の収集はなく、プレイ記録は端末内にのみ保存されます。"
 >
   <p>
@@ -46,11 +46,19 @@ import AppDoc from "@layouts/AppDoc.astro";
     <li>パズルの進捗（解きかけの盤面、ヒントの使用回数など）</li>
     <li>プレイ履歴（種目・レベル・クリアや失敗の結果・日時）</li>
     <li>種目別および総合のレート</li>
-    <li>設定（BGM・効果音の状態、選択中の曲、難易度表示の有無など）</li>
+    <li>設定（BGM・効果音の状態、選択中の曲など）</li>
+    <li>フルプランを購入済みかどうか（真偽値ひとつ）</li>
+    <li>
+      お試しプランの試用枠として遊んだ問題の番号（アプリに同梱された問題の識別子。個人を識別できる情報は含みません）
+    </li>
   </ul>
   <p>
     これらは iOS の標準機能（SwiftData および UserDefaults）によって保存され、外部に送信されることはありません。iCloud
     などによる同期も行いません。本アプリを削除すると、これらの情報も端末から削除されます（削除後に復元する手段はありません）。
+  </p>
+  <p>
+    ひとつだけ例外があり、<strong>お試し枠で遊んだ問題の数（数値ひとつ）を iOS の
+    キーチェーンにも保存しています</strong>。アプリを削除して入れ直すだけで試用枠が何度でも戻ってしまうのを防ぐためのもので、キーチェーンの項目はアプリを削除したあとも端末内に残ることがあります。保存しているのは数値ひとつだけで、個人を識別できる情報は含まず、端末の外に送信することもありません。フルプランを購入された場合、この数値は参照されなくなります。
   </p>
 
   <h2>4. Game Center について</h2>
@@ -76,9 +84,16 @@ import AppDoc from "@layouts/AppDoc.astro";
 
   <h2>5. ネットワーク通信</h2>
   <p>
-    本アプリ自体はネットワーク通信を行いません。パズルの問題データ・BGM・効果音はすべてアプリに同梱されており、オフラインで動作します。Game
-    Center のサインインに伴う通信は、iOS（Apple）が行うものです。
+    パズルの問題データ・BGM・効果音はすべてアプリに同梱されているため、<strong
+      >遊ぶだけであればネットワーク通信は行いません</strong
+    >（機内モードでも動作します）。通信が発生するのは次の場合だけで、いずれも
+    Apple のフレームワーク（StoreKit / GameKit）を通じて Apple
+    のサーバーとやり取りするものです。開発者のサーバーは存在せず、開発者が運営する送信先もありません。
   </p>
+  <ul>
+    <li>フルプランの価格の表示、購入、購入の復元（StoreKit）</li>
+    <li>Game Center のサインイン、アバターとニックネームの読み込み（GameKit）</li>
+  </ul>
 
   <h2>6. 広告・第三者の解析ツール</h2>
   <p>
@@ -97,8 +112,42 @@ import AppDoc from "@layouts/AppDoc.astro";
 
   <h2>8. アプリ内課金</h2>
   <p>
-    現在のバージョンにアプリ内課金はありません。将来的に導入する場合も、決済は
-    Apple（App Store）が処理し、クレジットカード番号などの決済情報が開発者に渡ることはありません。導入の際は本ポリシーを更新します。
+    本アプリには、買い切りの「フルプラン」というアプリ内課金がひとつあります（サブスクリプションではありません）。
+  </p>
+  <ul>
+    <li>
+      <strong>決済は Apple（App Store）が処理します。</strong
+      >クレジットカード番号・請求先情報・Apple ID
+      などの決済に関する情報が、開発者に渡ることはありません。
+    </li>
+    <li>
+      本アプリが購入に関して端末に保存するのは、<strong
+        >「購入済みかどうか」という真偽値ひとつだけ</strong
+      >です。購入者を識別する情報は保存しません。
+    </li>
+    <li>
+      購入内容の検証は、端末内で Apple の StoreKit
+      が行います。開発者のサーバーへ購入情報を送ることはありません（そもそも開発者のサーバーがありません）。
+    </li>
+    <li>
+      「購入を復元」を押したときは、Apple ID の認証と App Store
+      への問い合わせが行われます。この処理は Apple が行うもので、Apple ID
+      やパスワードが開発者に渡ることはありません。
+    </li>
+    <li>
+      オファーコード（友人・テスター向けの引き換えコード）の引き換えは App Store
+      上で行われます。開発者が受け取るのは、Apple から App Store Connect
+      を通じて提供される引き換え数などの集計情報のみです。
+    </li>
+  </ul>
+  <p>
+    購入に関するお支払い情報の取り扱いについては、<a
+      href="https://www.apple.com/legal/privacy/ja/"
+      target="_blank"
+      rel="noopener noreferrer">Apple のプライバシーポリシー</a
+    >をご確認ください。プランの内容や価格については<a href="/apps/pazutto"
+      >アプリの紹介ページ</a
+    >および<a href="/apps/pazutto/terms">利用規約</a>をご覧ください。
   </p>
 
   <h2>9. 子どものプライバシー</h2>
@@ -131,10 +180,16 @@ import AppDoc from "@layouts/AppDoc.astro";
     pazutto collects no personal data. All gameplay progress, ratings, and
     settings are stored only on your device (via SwiftData and UserDefaults) and
     are never transmitted to the developer or any third party. The app contains
-    no advertising, analytics, or crash-reporting SDKs, performs no network
-    requests of its own, and does not track users. If you are signed in to Apple
-    Game Center, your avatar and nickname are read for on-device display only.
-    Deleting the app removes all stored data. Contact:
+    no advertising, analytics, or crash-reporting SDKs and does not track users.
+    There is no developer-operated server; the only network activity comes from
+    Apple's own frameworks — StoreKit (for the one-time "Full Plan" in-app
+    purchase and restoring it) and GameKit (Game Center sign-in, where your
+    avatar and nickname are read for on-device display only). Payments are
+    handled entirely by Apple; the app stores only a single boolean indicating
+    whether the purchase is owned. A single number — how many puzzles of the free
+    trial allowance have been played — is also kept in the iOS Keychain, which
+    may persist after the app is deleted; it contains no personal information and
+    never leaves the device. Contact:
     <a href="mailto:t4traw@gmail.com">t4traw@gmail.com</a>.
   </p>
 </AppDoc>
