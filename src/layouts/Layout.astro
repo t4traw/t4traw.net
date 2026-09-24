@@ -2,7 +2,7 @@
 import HeaderNav from '@components/NavBar.astro';
 import Footer from '@components/Footer.astro';
 import '../styles/index.scss';
-const { title } = Astro.props;
+const { title, description } = Astro.props;
 ---
 
 <!doctype html>
@@ -13,6 +13,7 @@ const { title } = Astro.props;
     <link rel="icon" href="/favicon.ico" />
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
+    {description && <meta name="description" content={description} />}
     <link rel="stylesheet" href="https://fonts.xz.style/serve/inter.css" />
   </head>
   <body class="bg-zinc-800 min-h-screen flex flex-col">

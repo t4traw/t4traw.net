@@ -1,0 +1,70 @@
+---
+import Layout from "@layouts/Layout.astro";
+
+const apps = [
+  {
+    name: "pazutto",
+    nameJa: "ぱずっと",
+    tagline: "論理で必ず解けるパズル、6種の詰め合わせ",
+    icon: "/apps/pazutto/icon.png",
+    href: "/apps/pazutto",
+    platform: "iOS",
+    status: "近日公開",
+  },
+];
+---
+
+<Layout
+  title="App - t4traw.net"
+  description="もりやまたつろー（@t4traw）がつくったアプリの一覧です。"
+>
+  <div
+    class="container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96 py-8 md:py-20"
+  >
+    <div class="prose prose-invert max-w-none">
+      <h1>App</h1>
+      <p>つくったアプリを置いておくところです。</p>
+    </div>
+
+    <ul class="mt-10 md:mt-16 flex flex-col gap-6 list-none p-0">
+      {
+        apps.map((app) => (
+          <li>
+            <a
+              href={app.href}
+              class="group flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-8 rounded-2xl border border-zinc-700 bg-zinc-900/40 p-6 md:p-8 transition hover:border-zinc-500 hover:bg-zinc-900/80"
+            >
+              <img
+                src={app.icon}
+                alt={`${app.name} のアプリアイコン`}
+                width="96"
+                height="96"
+                class="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-[22%] shadow-lg"
+              />
+              <div class="flex flex-col gap-2">
+                <div class="flex flex-wrap items-center gap-3">
+                  <span class="text-white text-2xl font-bold font-['Inter']">
+                    {app.name}
+                  </span>
+                  <span class="text-neutral-400 text-sm">{app.nameJa}</span>
+                  <span class="rounded-full border border-zinc-600 px-2.5 py-0.5 text-xs text-neutral-300">
+                    {app.platform}
+                  </span>
+                  <span class="rounded-full bg-[#FE5F55]/15 px-2.5 py-0.5 text-xs text-[#FE9A94]">
+                    {app.status}
+                  </span>
+                </div>
+                <p class="text-neutral-300 text-base leading-relaxed">
+                  {app.tagline}
+                </p>
+                <span class="text-sm text-neutral-400 group-hover:text-white">
+                  詳しく見る →
+                </span>
+              </div>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Layout>
