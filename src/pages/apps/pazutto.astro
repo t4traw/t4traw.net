@@ -1,6 +1,9 @@
 ---
 import Layout from "@layouts/Layout.astro";
 
+// 地域を含めないので、見ている人のストアへ Apple 側が振り分けてくれる
+const appStoreUrl = "https://apps.apple.com/app/id6814303699";
+
 const puzzles = [
   {
     id: "numpre",
@@ -97,13 +100,22 @@ const features = [
           広告なし・オフラインで、じっくり考えられるアプリです。
         </p>
         <div
-          class="flex flex-wrap justify-center md:justify-start items-center gap-3"
+          class="flex flex-wrap justify-center md:justify-start items-center gap-4"
         >
-          <!-- TODO: App Store 公開後、ここをダウンロードリンクに差し替える -->
-          <span
-            class="rounded-full bg-[#FE5F55]/15 px-4 py-2 text-sm text-[#FE9A94]"
-            >App Store にて近日公開</span
+          <a
+            href={appStoreUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-block transition hover:opacity-75"
           >
+            <img
+              src="/apps/pazutto/app-store-badge-ja.svg"
+              alt="App Store でダウンロード"
+              width="141"
+              height="52"
+              class="h-[52px] w-auto"
+            />
+          </a>
           <span class="text-sm text-neutral-400">iOS 18.0 以降 / iPhone</span>
         </div>
       </div>
@@ -223,8 +235,35 @@ const features = [
         App Store の表示をご確認ください。
       </p>
 
+      <div
+        class="not-prose my-12 flex flex-col items-center gap-4 rounded-2xl border border-zinc-700 bg-zinc-900/40 p-8 text-center"
+      >
+        <p class="text-white text-lg font-bold font-['Inter']">
+          App Store で配信中です
+        </p>
+        <a
+          href={appStoreUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-block transition hover:opacity-75"
+        >
+          <img
+            src="/apps/pazutto/app-store-badge-ja.svg"
+            alt="App Store でダウンロード"
+            width="152"
+            height="56"
+            class="h-14 w-auto"
+          />
+        </a>
+      </div>
+
       <h2>ドキュメント・お問い合わせ</h2>
       <ul class="list-disc">
+        <li>
+          <a href={appStoreUrl} target="_blank" rel="noopener noreferrer"
+            >App Store のページ</a
+          >
+        </li>
         <li><a href="/apps/pazutto/privacy">プライバシーポリシー</a></li>
         <li><a href="/apps/pazutto/terms">利用規約</a></li>
         <li><a href="/apps/pazutto/support">サポート・お問い合わせ</a></li>
