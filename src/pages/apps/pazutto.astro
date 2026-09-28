@@ -35,6 +35,12 @@ const puzzles = [
     name: "バイナリ",
     summary: "2 種類の記号を、ルールどおりにならべる",
   },
+  {
+    id: "marathon",
+    name: "マラソン",
+    summary: "ランナーを走らせて、ゴールまでの一本道をつくる",
+    original: true,
+  },
 ];
 
 const features = [
@@ -67,7 +73,7 @@ const features = [
 
 <Layout
   title="pazutto（ぱずっと） - t4traw.net"
-  description="論理で必ず解けるパズル6種の詰め合わせ iOS アプリ「pazutto（ぱずっと）」。広告なし、オフラインで遊べます。"
+  description="論理で必ず解けるパズル7種の詰め合わせ iOS アプリ「pazutto（ぱずっと）」。広告なし、オフラインで遊べます。"
 >
   <!-- ヒーロー -->
   <div
@@ -96,7 +102,7 @@ const features = [
           <div class="text-neutral-400 text-lg font-['Inter']">ぱずっと</div>
         </div>
         <p class="text-white text-md font-medium font-['Inter'] leading-loose">
-          論理で必ず解けるパズル、6種の詰め合わせ。<br />
+          論理で必ず解けるパズル、7種の詰め合わせ。<br />
           広告なし・オフラインで、じっくり考えられるアプリです。
         </p>
         <div
@@ -134,7 +140,8 @@ const features = [
         パズルアプリが好きでいろいろ試してきたのですが、「広告が多くて集中できない」「日本語対応が雑」「やさしい問題ばかりで歯ごたえがない」といった不満がだんだん溜まってきました。そこで、自分が遊びたいものを自分でつくることにしました。
       </p>
       <p>
-        収録しているのは、ナンプレ・スターバトル・四角分け・マインスイーパー・フェンス・バイナリの6種目。どれも<strong
+        収録しているのは、ナンプレ・スターバトル・四角分け・マインスイーパー・フェンス・バイナリ・マラソンの7種目。マラソンは
+        pazutto オリジナルのパズルです。どれも<strong
           >答えがひとつに決まる問題だけ</strong
         >を、自作の問題生成器でつくって同梱しています。エンドレスに続くタイプではないので、解けたら気持ちよく終われます。BGMと効果音も自作です。
       </p>
@@ -179,8 +186,15 @@ const features = [
               class="h-16 w-16 shrink-0 rounded-xl"
             />
             <div class="flex flex-col gap-1">
-              <h3 class="text-white text-lg font-bold font-['Inter']">
-                {puzzle.name}
+              <h3 class="flex flex-wrap items-center gap-2">
+                <span class="text-white text-lg font-bold font-['Inter']">
+                  {puzzle.name}
+                </span>
+                {puzzle.original && (
+                  <span class="rounded-full bg-[#FE5F55]/15 px-2.5 py-0.5 text-xs text-[#FE9A94]">
+                    オリジナル
+                  </span>
+                )}
               </h3>
               <p class="text-neutral-300 text-sm leading-relaxed">
                 {puzzle.summary}
