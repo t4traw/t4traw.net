@@ -11,6 +11,15 @@ const apps = [
     platform: "iOS",
     status: "App Store で配信中",
   },
+  {
+    name: "ループBGMスタジオ",
+    nameJa: "",
+    tagline: "ゲーム用ループBGMを生成するウェブアプリ",
+    icon: "/apps/loop-bgm-studio/icon.png",
+    href: "/apps/loop-bgm-studio",
+    platform: "Web",
+    status: "ブラウザ",
+  },
 ];
 ---
 
@@ -46,7 +55,9 @@ const apps = [
                   <span class="text-white text-2xl font-bold font-['Inter']">
                     {app.name}
                   </span>
-                  <span class="text-neutral-400 text-sm">{app.nameJa}</span>
+                  {app.nameJa && (
+                    <span class="text-neutral-400 text-sm">{app.nameJa}</span>
+                  )}
                   <span class="rounded-full border border-zinc-600 px-2.5 py-0.5 text-xs text-neutral-300">
                     {app.platform}
                   </span>
