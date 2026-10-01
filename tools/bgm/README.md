@@ -1,0 +1,65 @@
+# ループBGMスタジオ（開発メモ）
+
+`/apps/loop-bgm-studio` で公開しているループBGMスタジオの正本は、このリポジトリのモジュール。
+Astro ページも単体HTMLも CLI も、ここから作る。仕様・方針・曲の記録は [GUIDE.md](./GUIDE.md)。
+
+## 構成
+
+```
+src/scripts/loop-bgm-studio/
+  engine.js     DOM に触らない部分すべて（理論・音色・土台・buildSong・アレンジ・ドラム・
+                おまかせ・レシピコード・MIDI・音源グラフ・スケジュール・書き出し）。Tone は useTone() で受け取る
+  data.js       engine.js の表を再export ＋ KEY_NAMES（Astro ページのビルド時に使う）
+  controls.js   画面の部品の一覧（スライダー・選択ボタン・トグル・パート行）と、開いたときの状態
+  app.js        DOM の配線。controls.js を回して data 属性で部品を見つける。Astro と単体HTMLで共通
+src/pages/apps/loop-bgm-studio.astro
+                controls.js をビルド時に回して Tailwind で描画
+tools/bgm/
+  bgm-test.mjs          検証と演奏の指紋（golden）
+  bgm-tool.mjs          CLI（encode / decode / describe / seeds / check / midi / omakase / list）
+  build-standalone.mjs  単体HTMLを tools/bgm/out/loop-bgm-studio.html に焼く（成果物。手で編集しない）
+  standalone.css        単体HTMLの見た目（Zen Maru Gothic、明暗テーマ）
+```
+
+## コマンド
+
+```bash
+npm run bgm:test                       # engine.js を検証。改修したら必ず「すべて通過」させる
+npm run bgm:standalone                 # 単体HTMLを作って、それにも bgm-test を通す
+npm run bgm -- describe <code>         # CLI（npm run bgm -- list でも、node tools/bgm/bgm-tool.mjs ... でも）
+npm run bgm -- check <code>
+```
+
+`bgm-test` の golden は「過去のコードが同じ演奏で鳴ること」の指紋。演奏を**意図して**変えたときだけ
+`node tools/bgm/bgm-test.mjs --golden-print` の結果でファイル内の GOLDEN を更新する。
+
+## スライダーを1本足す
+
+触るのは `engine.js` と `controls.js` だけ。Astro のマークアップと app.js は触らない。
+
+1. **engine.js**
+   - その値で演奏を変える処理を足す。0（または既定値）のとき今までと**完全に同じ演奏**になること。乱数は既存の列を消費しない専用の列を使う
+   - レシピコードに新レイアウトを作る（例：`const W8=W7.concat([2]);`、`LAYOUT` に `'8':W8`）。古いレイアウトは消さない
+   - `encodeRecipe` の先頭を新バージョンにして値を末尾に足し、`W8` で詰める。`CODE_LEN` を新しい長さに
+   - `decodeRecipe` で `has8` のときだけ読み、古いコードでは 0 を返す
+2. **controls.js** の `KNOBS` に1行足す
+   ```js
+   {id:'drumSwing', path:'drumSwing', section:'arrange', label:'ドラムの○○', def:40, zero:'そのまま', on:'rebuild',
+    help:'説明文。欄の下に並ぶ'},
+   ```
+   - `def` は新しく開いたときの値（CLI の encode / seeds の既定にもなる）
+   - `on` は動かしたときの処理：`rebuild`（演奏を作り直す）/ `live`（音色だけ）/ `bpm` / `swing` / `vol`
+3. `tools/bgm/bgm-test.mjs` の `base()` と `randomState()` に新しい項目を足す（`base` は 0、`randomState` は乱数）。
+   新しい乱数を足すと固定乱数500件の指紋は変わるので、**先に** 0 のままで golden が一致するのを確かめてから
+   `--golden-print` で `random500` を更新する
+4. `npm run bgm:test` → `npm run bgm:standalone` → `npm run build` → ブラウザで確認
+
+選択ボタン（`SEGS`）やトグル（`CHIPS`）、パート行（`PARTS`）も同じ要領で controls.js に足せば両方の画面に出る。
+
+## 注意
+
+- **Tone.js は 14.7.77 に固定**（package.json も単体HTMLの CDN も）。位置指定 `小節:拍:16分(小数)` と NoiseSynth / MembraneSynth の引数がこの系統前提
+- 土台・音色・ベース・ドラム・音階は配列の添字でコード化しているので、追加は必ず**末尾**に。並べ替え・差し替え禁止
+- 伴奏・ベース・音階の欄はまだ1桁（各16種まで）。超えるなら新レイアウトで2桁に
+- 試聴音量 `vol` はレシピにも書き出しにも入らない
+- 単体HTMLの中では engine.js がトップレベルにそのまま入る（bgm-test が `const PC=[` から `function setupTransport` までを切り出して検証するため）。controls.js と app.js は関数の中に入って、エンジンを `E` で見る

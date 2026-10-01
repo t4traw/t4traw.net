@@ -9,6 +9,13 @@ import {
   KITS,
   KEY_NAMES,
 } from "../../scripts/loop-bgm-studio/data.js";
+import {
+  SECTIONS,
+  PARTS,
+  knobsIn,
+  segsIn,
+  chipsIn,
+} from "../../scripts/loop-bgm-studio/controls.js";
 
 const container =
   "container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96";
@@ -25,7 +32,7 @@ const status =
   "text-sm leading-relaxed text-neutral-400 data-[bad=true]:text-[#FE9A94]";
 const ghost =
   "rounded-full border border-zinc-600 px-4 py-2 text-sm font-bold text-white transition hover:border-[#FE5F55] hover:text-[#FE9A94] disabled:cursor-not-allowed disabled:opacity-40";
-const seg =
+const segCls =
   "grid grid-cols-2 w-full sm:inline-flex sm:w-auto overflow-hidden rounded-2xl sm:rounded-full border border-zinc-600 bg-zinc-800";
 const segBtn =
   "px-2 sm:px-4 py-2 text-center text-sm font-bold text-neutral-400 transition hover:text-white aria-pressed:bg-[#FE5F55] aria-pressed:text-white";
@@ -34,25 +41,10 @@ const chip =
 const row = "flex flex-wrap items-center gap-3 md:gap-4";
 const rowLabel = "min-w-[5.5em] text-sm text-neutral-400";
 
-const parts = [
-  { key: "lead", name: "メロディ", selId: "selLead" },
-  { key: "chord", name: "伴奏", selId: "selPad" },
-  { key: "bass", name: "ベース", selId: "selBass" },
-  { key: "drum", name: "ドラム", selId: "selDrum" },
-];
-const partOptions = { lead: LEADS, chord: PADS, bass: BASSES, drum: KITS };
-
-const melodyKnobs = [
-  { id: "mDens", name: "音数" },
-  { id: "mRange", name: "音域の幅" },
-  { id: "mLeap", name: "跳ねぐあい" },
-];
-const mixKnobs = [
-  { id: "bpm", name: "テンポ", min: 52, max: 176 },
-  { id: "swing", name: "はねかた" },
-  { id: "density", name: "伴奏のにぎやかさ" },
-  { id: "tone", name: "音のまるさ" },
-];
+const tables = { LEADS, PADS, BASSES, KITS };
+const [volKnob] = knobsIn("transport");
+const disabledRow =
+  "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40";
 ---
 
 <Layout
@@ -155,13 +147,14 @@ const mixKnobs = [
           class="grid w-full grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 sm:ml-auto sm:w-56"
           title="この画面で聴くときだけの音量。書き出される音源のレベルには影響しない"
         >
-          <label for="vol" class={label}>音量（試聴用）</label>
-          <output id="volOut" class={output}></output>
+          <label for={volKnob.id} class={label}>{volKnob.label}</label>
+          <output data-knob-out={volKnob.id} class={output}></output>
           <input
             type="range"
-            id="vol"
-            min="0"
-            max="100"
+            id={volKnob.id}
+            data-knob={volKnob.id}
+            min={volKnob.min ?? 0}
+            max={volKnob.max ?? 100}
             step="1"
             class={`${range} col-span-2`}
           />
@@ -231,7 +224,7 @@ const mixKnobs = [
       </h2>
       <div class="grid gap-2.5">
         {
-          parts.map((part) => (
+          PARTS.map((part) => (
             <div
               data-part={part.key}
               data-off="false"
@@ -247,7 +240,7 @@ const mixKnobs = [
                 id={part.selId}
                 class={`${select} [grid-area:s] bg-zinc-900 group-data-[off=true]/part:opacity-40`}
               >
-                {Object.entries(partOptions[part.key]).map(([k, v]) => (
+                {Object.entries(tables[part.table]).map(([k, v]) => (
                   <option value={k}>{v.name}</option>
                 ))}
               </select>
@@ -312,86 +305,77 @@ const mixKnobs = [
       </div>
     </section>
 
-    <!-- メロディの表情 -->
-    <section class={deck}>
-      <h2 class={heading}>
-        メロディの表情<span class={note}>一番上の線をどう歌わせるか</span>
-      </h2>
-      <div
-        class="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-x-6 gap-y-3.5"
-      >
-        {
-          melodyKnobs.map((knob) => (
-            <div class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
-              <label for={knob.id} class={label}>
-                {knob.name}
-              </label>
-              <output id={`${knob.id}Out`} class={output} />
-              <input
-                type="range"
-                id={knob.id}
-                min="0"
-                max="100"
-                step="1"
-                class={`${range} col-span-2`}
-              />
+    {
+      ["melody", "arrange", "mix"].map((sec) => (
+        <section class={deck}>
+          <h2 class={heading}>
+            {SECTIONS[sec].title}
+            {SECTIONS[sec].note && (
+              <span class={note}>{SECTIONS[sec].note}</span>
+            )}
+          </h2>
+          <div class="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-x-6 gap-y-3.5">
+            {knobsIn(sec).map((knob) => (
+              <div class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
+                <label for={knob.id} class={label}>
+                  {knob.label}
+                </label>
+                <output data-knob-out={knob.id} class={output} />
+                <input
+                  type="range"
+                  id={knob.id}
+                  data-knob={knob.id}
+                  min={knob.min ?? 0}
+                  max={knob.max ?? 100}
+                  step="1"
+                  class={`${range} col-span-2`}
+                />
+              </div>
+            ))}
+          </div>
+          {segsIn(sec).map((sg) => (
+            <div class={row}>
+              <span class={rowLabel}>{sg.label}</span>
+              <div
+                data-seg={sg.name}
+                class={`${segCls} ${sg.options.length === 3 ? "grid-cols-3" : ""}`}
+              >
+                {sg.options.map(([, text], i) => (
+                  <button type="button" data-i={i} class={segBtn}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+              {sg.info && <span id={sg.info} class={status} />}
             </div>
-          ))
-        }
-      </div>
-      <div class={row}>
-        <span class={rowLabel}>高さ</span>
-        <div id="octSeg" class={`${seg} grid-cols-3`}>
-          <button type="button" data-oct="-1" class={segBtn}>1オクターブ下</button>
-          <button type="button" data-oct="0" class={segBtn}>そのまま</button>
-          <button type="button" data-oct="1" class={segBtn}>1オクターブ上</button>
-        </div>
-      </div>
-      <div class={row}>
-        <span class={rowLabel}>重ねる線</span>
-        <div id="layers" class="flex flex-wrap gap-2">
-          <button type="button" data-layer="octUp" class={chip}>オクターブ上</button>
-          <button type="button" data-layer="harm" class={chip}>ハモリ</button>
-          <button type="button" data-layer="counter" class={chip}>裏メロ</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- 調整 -->
-    <section class={deck}>
-      <h2 class={heading}>調整</h2>
-      <div
-        class="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-x-6 gap-y-3.5"
-      >
-        {
-          mixKnobs.map((knob) => (
-            <div class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
-              <label for={knob.id} class={label}>
-                {knob.name}
-              </label>
-              <output id={`${knob.id}Out`} class={output} />
-              <input
-                type="range"
-                id={knob.id}
-                min={knob.min ?? 0}
-                max={knob.max ?? 100}
-                step="1"
-                class={`${range} col-span-2`}
-              />
+          ))}
+          {chipsIn(sec).map((c) => (
+            <div class={row}>
+              <span class={rowLabel}>{c.label}</span>
+              <div class="flex flex-wrap gap-2">
+                {c.items.map(([path, text]) => (
+                  <button type="button" data-chip={path} class={chip}>
+                    {text}
+                  </button>
+                ))}
+              </div>
             </div>
-          ))
-        }
-      </div>
-      <div class={row}>
-        <span class={rowLabel}>ループの長さ</span>
-        <div id="lenSeg" class={`${seg} grid-cols-3`}>
-          <button type="button" data-len="1" class={segBtn}>16小節</button>
-          <button type="button" data-len="2" class={segBtn}>32小節</button>
-          <button type="button" data-len="4" class={segBtn}>64小節</button>
-        </div>
-        <span id="lenInfo" class={status}></span>
-      </div>
-    </section>
+          ))}
+          {knobsIn(sec).some((k) => k.help) && (
+            <ul class="flex flex-col gap-1 text-xs leading-relaxed text-neutral-400">
+              {knobsIn(sec)
+                .filter((k) => k.help)
+                .map((k) => (
+                  <li>
+                    <b class="font-bold text-neutral-200">{k.label}</b>：{k.help}
+                  </li>
+                ))}
+              {SECTIONS[sec].foot && <li>{SECTIONS[sec].foot}</li>}
+            </ul>
+          )}
+        </section>
+      ))
+    }
 
     <!-- レシピコード -->
     <section class={deck}>
@@ -417,34 +401,27 @@ const mixKnobs = [
     <!-- 書き出し -->
     <section class={deck}>
       <h2 class={heading}>書き出し</h2>
-      <div class={row}>
-        <span class={rowLabel}>形式</span>
-        <div id="fmtSeg" class={seg}>
-          <button type="button" data-fmt="pcm" class={segBtn}>CAF・無劣化</button>
-          <button type="button" data-fmt="ima4" class={segBtn}>CAF・軽量</button>
-          <button type="button" data-fmt="wav" class={segBtn}>WAV</button>
-          <button type="button" data-fmt="mid" class={segBtn}>MIDI</button>
-        </div>
-      </div>
-      <p id="fmtNote" class={status}></p>
-      <div id="peakRow" class={`${row} transition-opacity`}>
-        <span class={rowLabel}>出力レベル</span>
-        <div id="peakSeg" class={seg}>
-          <button type="button" data-peak="0" class={segBtn}>−3 dBFS</button>
-          <button type="button" data-peak="1" class={segBtn}>−6 dBFS</button>
-          <button type="button" data-peak="2" class={segBtn}>−9 dBFS</button>
-          <button type="button" data-peak="3" class={segBtn}>そのまま</button>
-        </div>
-        <span id="peakNote" class={status}></span>
-      </div>
-      <div id="chRow" class={`${row} transition-opacity`}>
-        <span class={rowLabel}>チャンネル</span>
-        <div id="chSeg" class={seg}>
-          <button type="button" data-ch="2" class={segBtn}>ステレオ</button>
-          <button type="button" data-ch="1" class={segBtn}>モノラル</button>
-        </div>
-        <span id="sizeNote" class={status}></span>
-      </div>
+      {
+        segsIn("export").map((sg) => (
+          <>
+            <div
+              id={sg.row}
+              class={sg.row ? `${row} transition-opacity ${disabledRow}` : row}
+            >
+              <span class={rowLabel}>{sg.label}</span>
+              <div data-seg={sg.name} class={segCls}>
+                {sg.options.map(([, text], i) => (
+                  <button type="button" data-i={i} class={segBtn}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+              {sg.info && <span id={sg.info} class={status} />}
+            </div>
+            {sg.name === "fmt" && <p id="fmtNote" class={status} />}
+          </>
+        ))
+      }
       <div class={`${row} mt-1`}>
         <button
           id="export"
@@ -483,5 +460,7 @@ const mixKnobs = [
 </Layout>
 
 <script>
-  import "../../scripts/loop-bgm-studio/app.js";
+  import { startStudio } from "../../scripts/loop-bgm-studio/app.js";
+  // Tone.js は重いので、最初に再生を押したときに読み込む
+  startStudio({ loadTone: () => import("tone") });
 </script>

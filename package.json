@@ -13,7 +13,10 @@
     "preview": "astro preview",
     "astro": "astro",
     "new": "node bin/new_post.js",
-    "update": "npx npm-check-updates -u"
+    "update": "npx npm-check-updates -u",
+    "bgm": "node tools/bgm/bgm-tool.mjs",
+    "bgm:test": "node tools/bgm/bgm-test.mjs",
+    "bgm:standalone": "node tools/bgm/build-standalone.mjs && node tools/bgm/bgm-test.mjs tools/bgm/out/loop-bgm-studio.html"
   },
   "dependencies": {
     "@astrojs/mdx": "^4.0.2",
@@ -25,7 +28,7 @@
     "tailwindcss": "^3.4.17",
     "textlint": "^14.4.0",
     "to-snake-case": "^1.0.0",
-    "tone": "^15.1.22"
+    "tone": "14.7.77"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.15",
