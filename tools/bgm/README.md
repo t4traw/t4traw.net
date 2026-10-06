@@ -7,7 +7,7 @@ Astro ページも単体HTMLも CLI も、ここから作る。仕様・方針�
 
 ```
 src/scripts/loop-bgm-studio/
-  engine.js     DOM に触らない部分すべて（理論・音色・土台・buildSong・アレンジ・ドラム・
+  engine.js     DOM に触らない部分すべて（理論・音色・曲調・buildSong・アレンジ・ドラム・
                 おまかせ・レシピコード・MIDI・音源グラフ・スケジュール・書き出し）。Tone は useTone() で受け取る
   data.js       engine.js の表を再export ＋ KEY_NAMES（Astro ページのビルド時に使う）
   controls.js   画面の部品の一覧（スライダー・選択ボタン・トグル・パート行）と、開いたときの状態
@@ -20,6 +20,17 @@ tools/bgm/
   build-standalone.mjs  単体HTMLを tools/bgm/out/loop-bgm-studio.html に焼く（成果物。手で編集しない）
   standalone.css        単体HTMLの見た目（Zen Maru Gothic、明暗テーマ）
 ```
+
+## 用語
+
+画面・コメント・ドキュメントでは次の言葉で統一する（2026-10-07 に決めた）。
+
+| 言葉 | 意味 | コード上の名前 |
+|---|---|---|
+| **曲調** | コード進行・拍子・テンポ・編成・音階のひな型（のんびり、DnB…）。以前は「土台」と呼んでいたが、分かりにくいのでやめた | `preset` / `PRESETS` / `MOOD_KEYS` |
+| ジャンル選択 | 曲調を選ぶ画面・ボタンの名前 | — |
+| タネ | 同じ曲調・設定から別の演奏を作るための乱数の種 | `seed` |
+| レシピコード | 設定をまるごと詰めた1行のコード（ハッシュ） | `encodeRecipe` / `decodeRecipe` |
 
 ## コマンド
 
@@ -59,7 +70,7 @@ npm run bgm -- check <code>
 ## 注意
 
 - **Tone.js は 14.7.77 に固定**（package.json も単体HTMLの CDN も）。位置指定 `小節:拍:16分(小数)` と NoiseSynth / MembraneSynth の引数がこの系統前提
-- 土台・音色・ベース・ドラム・音階は配列の添字でコード化しているので、追加は必ず**末尾**に。並べ替え・差し替え禁止
+- 曲調・音色・ベース・ドラム・音階は配列の添字でコード化しているので、追加は必ず**末尾**に。並べ替え・差し替え禁止
 - 伴奏・ベース・音階の欄はまだ1桁（各16種まで）。超えるなら新レイアウトで2桁に
 - 試聴音量 `vol` はレシピにも書き出しにも入らない
 - 単体HTMLの中では engine.js がトップレベルにそのまま入る（bgm-test が `const PC=[` から `function setupTransport` までを切り出して検証するため）。controls.js と app.js は関数の中に入って、エンジンを `E` で見る

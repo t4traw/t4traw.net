@@ -1,6 +1,6 @@
 /*
   ループBGMスタジオのエンジン（正本）。DOM には触らない。
-  理論・音色表・土台・進行・buildSong・アレンジ・ドラム・おまかせ・レシピコード・MIDI・
+  理論・音色表・曲調・進行・buildSong・アレンジ・ドラム・おまかせ・レシピコード・MIDI・
   音源グラフ・スケジュール・WAV/CAF/IMA4/ZIP の書き出しまで全部ここ。
   Astro ページ、単体HTML（tools/bgm/build-standalone.mjs）、CLI（tools/bgm/bgm-tool.mjs）、
   検証（tools/bgm/bgm-test.mjs）はみんなこのファイルを読む。
@@ -104,7 +104,27 @@ export const LEADS={
     modulation:{type:'sine'},modulationEnvelope:{attack:.003,decay:.25,sustain:0,release:.2}}},
   brass:{name:'やわらかブラス',gm:61,vol:-15,cfg:{harmonicity:1.0,modulationIndex:3.5,oscillator:{type:'sine'},
     envelope:{attack:.03,decay:.3,sustain:.7,release:.3},
-    modulation:{type:'sine'},modulationEnvelope:{attack:.05,decay:.3,sustain:.5,release:.3}}}
+    modulation:{type:'sine'},modulationEnvelope:{attack:.05,decay:.3,sustain:.5,release:.3}}},
+  // 2026-10-07 追加：ゲームのやさしい音以外にも寄せられるよう、太い・派手な音
+  saw:{name:'ソウリード',gm:81,vol:-17,cfg:{harmonicity:1.0,modulationIndex:0,oscillator:{type:'sawtooth'},
+    envelope:{attack:.006,decay:.3,sustain:.55,release:.25},
+    modulation:{type:'sine'},modulationEnvelope:{attack:.01,decay:.1,sustain:0,release:.1}}},
+  supersaw:{name:'スーパーソウ',gm:81,vol:-20,cfg:{harmonicity:1.0,modulationIndex:0,
+    oscillator:{type:'fatsawtooth',count:3,spread:28},
+    envelope:{attack:.01,decay:.4,sustain:.65,release:.4},
+    modulation:{type:'sine'},modulationEnvelope:{attack:.01,decay:.1,sustain:0,release:.1}}},
+  square:{name:'スクエアリード',gm:80,vol:-19,cfg:{harmonicity:1.0,modulationIndex:0,oscillator:{type:'square'},
+    envelope:{attack:.004,decay:.25,sustain:.5,release:.18},
+    modulation:{type:'sine'},modulationEnvelope:{attack:.01,decay:.1,sustain:0,release:.1}}},
+  organ:{name:'オルガン',gm:17,vol:-15,cfg:{harmonicity:2.0,modulationIndex:1.6,oscillator:{type:'sine'},
+    envelope:{attack:.01,decay:.1,sustain:.9,release:.12},
+    modulation:{type:'sine'},modulationEnvelope:{attack:.01,decay:.1,sustain:1,release:.12}}},
+  grit:{name:'ざらざら',gm:30,vol:-19,cfg:{harmonicity:1.0,modulationIndex:4.5,oscillator:{type:'sawtooth'},
+    envelope:{attack:.004,decay:.35,sustain:.45,release:.25},
+    modulation:{type:'square'},modulationEnvelope:{attack:.004,decay:.3,sustain:.4,release:.2}}},
+  bow:{name:'バイオリン風',gm:40,vol:-17,cfg:{harmonicity:1.0,modulationIndex:.7,oscillator:{type:'sawtooth'},
+    envelope:{attack:.14,decay:.3,sustain:.8,release:.35},
+    modulation:{type:'sine'},modulationEnvelope:{attack:.2,decay:.3,sustain:.6,release:.3}}}
 };
 export const PADS={
   vibes:{name:'やわらか和音',gm:11,vol:-14,long:false,
@@ -126,7 +146,18 @@ export const PADS={
   chip:{name:'ピコピコ和音',gm:80,vol:-25,long:false,
     cfg:{oscillator:{type:'square'},envelope:{attack:.002,decay:.12,sustain:.1,release:.08}}},
   clav:{name:'カッティング',gm:7,vol:-23,long:false,
-    cfg:{oscillator:{type:'square'},envelope:{attack:.001,decay:.085,sustain:0,release:.05}}}
+    cfg:{oscillator:{type:'square'},envelope:{attack:.001,decay:.085,sustain:0,release:.05}}},
+  // 2026-10-07 追加（伴奏はまだ1桁の欄なので、あと1つで上限の16）
+  supersaw:{name:'スーパーソウ',gm:81,vol:-24,long:false,
+    cfg:{oscillator:{type:'fatsawtooth',count:3,spread:30},envelope:{attack:.015,decay:.35,sustain:.45,release:.5}}},
+  warm:{name:'あたたかパッド',gm:89,vol:-26,long:true,
+    cfg:{oscillator:{type:'fatsawtooth',count:3,spread:18},envelope:{attack:.5,decay:1.0,sustain:.75,release:1.6}}},
+  square:{name:'スクエア和音',gm:80,vol:-25,long:false,
+    cfg:{oscillator:{type:'square'},envelope:{attack:.003,decay:.25,sustain:.25,release:.2}}},
+  epiano:{name:'エレピ和音',gm:4,vol:-15,long:false,
+    cfg:{oscillator:{type:'amsine',harmonicity:2},envelope:{attack:.004,decay:1.0,sustain:.12,release:.8}}},
+  brass:{name:'ブラス和音',gm:61,vol:-24,long:true,
+    cfg:{oscillator:{type:'sawtooth'},envelope:{attack:.06,decay:.3,sustain:.7,release:.3}}}
 };
 export const BASSES={
   two:{name:'ふたつ刻み',gm:32}, walk:{name:'ウォーキング',gm:32},
@@ -144,7 +175,9 @@ export const KITS={
   boombap:{name:'ブームバップ'}, lofi:{name:'ローファイ'}, rock:{name:'ロック'},
   twostep:{name:'2ステップ'}, onedrop:{name:'ワンドロップ'}, samba:{name:'サンバ'},
   march:{name:'マーチ'}, jazz:{name:'ジャズ'}, trap:{name:'トラップ'},
-  chipdrum:{name:'ピコピコドラム'}, afro:{name:'アフロ'}
+  chipdrum:{name:'ピコピコドラム'}, afro:{name:'アフロ'},
+  dnb:{name:'ドラムンベース'}, amen:{name:'ブレイク（アーメン風）'}, trance:{name:'トランス'},
+  gabber:{name:'ガバ'}, minimal:{name:'ミニマル'}
 };
 export const SCALES={
   chord:{name:'コード音',desc:'和音の構成音とテンションから選ぶ。動機が和音につれて移調するので曲っぽくまとまる'},
@@ -157,7 +190,7 @@ export const SCALES={
   modeDown:{name:'ひとさじ渋く',desc:'長調ならミクソリディアン（♭7）、短調ならフリジアン（♭2）。1音だけ影を落とす'},
   harmonic:{name:'エキゾチック',desc:'和声的短音階（長調ならハーモニック・メジャー）。遺跡や砂漠のような異国の香り'},
   wholetone:{name:'全音音階',desc:'全部が全音間隔の6音。重力がなくなる、夢の中のような浮遊感'},
-  majblues:{name:'メジャーブルース',desc:'明るいペンタに♭3を足す。陽気なこぶし。短調の土台ではブルースと同じ音になる'}
+  majblues:{name:'メジャーブルース',desc:'明るいペンタに♭3を足す。陽気なこぶし。短調の曲調ではブルースと同じ音になる'}
 };
 export const SCALE_SET={
   penta:m=>m?[0,3,5,7,10]:[0,2,4,7,9],
@@ -223,7 +256,16 @@ mellow:[[5,'maj9'],[4,'m9'],[2,'m9'],[0,'maj9'],[5,'maj9'],[4,'m7'],[9,'m9'],[9,
   [2,'m9'],[7,'dom13'],[4,'m9'],[9,'m9'],[2,'m9'],[7,'sus9'],[0,'maj9'],[7,'dom13']],
 /* C minor, weighted low; the relative major and sus chords keep it from going dark */
 heavy:[[0,'m9'],[0,'m9'],[8,'maj7'],[8,'maj7'],[5,'m9'],[5,'m9'],[3,'maj9'],[7,'sus9'],
-  [0,'m9'],[10,'sus9'],[8,'maj9'],[8,'maj7'],[5,'m7'],[7,'sus9'],[3,'maj9'],[7,'dom7']]
+  [0,'m9'],[10,'sus9'],[8,'maj9'],[8,'maj7'],[5,'m7'],[7,'sus9'],[3,'maj9'],[7,'dom7']],
+/* A minor: i-iv で揺れて、bVI から V7#9 で戻る。ループするサンプル風 */
+hiphop:[[9,'m9'],[9,'m9'],[2,'m9'],[2,'m9'],[9,'m9'],[9,'m9'],[5,'maj7'],[4,'dom7s9'],
+  [9,'m9'],[9,'m9'],[2,'m9'],[2,'m9'],[5,'maj7'],[5,'maj7'],[4,'dom7s9'],[4,'dom7s9']],
+/* liquid: D minor から長調の和音へ開いていく。2小節ずつ */
+dnb:[[2,'m9'],[2,'m9'],[10,'maj9'],[10,'maj9'],[5,'maj9'],[5,'maj9'],[0,'sus9'],[0,'sus9'],
+  [2,'m9'],[2,'m9'],[10,'maj9'],[10,'maj9'],[7,'m9'],[7,'m9'],[9,'sus9'],[9,'dom7']],
+/* vi-IV-I-V。2小節ずつで大きく開く */
+trance:[[9,'m7'],[9,'m7'],[5,'maj7'],[5,'maj7'],[0,'maj9'],[0,'maj9'],[7,'sus9'],[7,'sus9'],
+  [9,'m7'],[9,'m7'],[5,'maj7'],[5,'maj7'],[0,'maj9'],[0,'maj9'],[7,'sus9'],[4,'dom7']]
 };
 
 /* beats = beats per bar. 3 gives you a waltz / 6-8 feel. */
@@ -296,7 +338,25 @@ export const PRESETS={
     lead:'rhodes',pad:'choir',bass:'synco',drums:'lofi',center:80,comp:[0],rev:.36,filt:4600,scale:'chord'},
   dosshiri:{label:'どっしり',desc:'重心を低く、ゆっくり踏みしめる。暗すぎない重さ。長考やボス前に',
     bpm:72,swing:0,beats:4,prog:'heavy',tonic:0,minor:true,
-    lead:'vibes',pad:'strings',bass:'whole',drums:'boombap',center:74,comp:[0],rev:.40,filt:3600,scale:'diatonic'}
+    lead:'vibes',pad:'strings',bass:'whole',drums:'boombap',center:74,comp:[0],rev:.40,filt:3600,scale:'diatonic'},
+  minimal:{label:'ミニマル',desc:'クリックとリムだけの乾いた4つ打ち。同じ動機が淡々と続くミニマルテクノ',
+    bpm:124,swing:10,beats:4,prog:'midnight',tonic:2,minor:true,plan:'minimal',
+    lead:'pluck',pad:'stab',bass:'pulse',drums:'minimal',center:78,comp:[3,7],rev:.30,filt:4200,scale:'chord'},
+  hiphop:{label:'ヒップホップ',desc:'ハネたブームバップにエレピ。ゆるく首を振るビート。拠点やメニューに',
+    bpm:90,swing:52,beats:4,prog:'hiphop',tonic:9,minor:true,
+    lead:'rhodes',pad:'piano',bass:'synco',drums:'boombap',center:79,comp:[0,3],rev:.24,filt:4400,scale:'penta'},
+  dnb:{label:'DnB',desc:'速いブレイクに、ゆったり流れるパッドとベース。疾走する面に',
+    bpm:172,swing:0,beats:4,prog:'dnb',tonic:2,minor:true,
+    lead:'bell',pad:'pad',bass:'whole',drums:'dnb',center:82,comp:[0],rev:.34,filt:5800,scale:'chord'},
+  breakbeat:{label:'ブレイクビーツ',desc:'細かく刻むブレイクで前のめりに。アクションの合間に',
+    bpm:132,swing:6,beats:4,prog:'longrun',tonic:9,minor:true,
+    lead:'synth',pad:'stab',bass:'octave',drums:'amen',center:80,comp:[2,6],rev:.20,filt:6400,scale:'penta'},
+  trance:{label:'トランス',desc:'4つ打ちと裏のハイハット、大きく開く和音。高揚して駆け上がる',
+    bpm:138,swing:0,beats:4,prog:'trance',tonic:9,minor:true,
+    lead:'synth',pad:'pad',bass:'offbeat',drums:'trance',center:84,comp:[1,3,5,7],rev:.38,filt:7400,scale:'penta'},
+  hardcore:{label:'ハードコア',desc:'速く硬い4つ打ちを踏み続ける。ボス戦や追い込みに',
+    bpm:176,swing:0,beats:4,prog:'heavy',tonic:0,minor:true,
+    lead:'synth',pad:'stab',bass:'offbeat',drums:'gabber',center:80,comp:[1,3,5,7],rev:.16,filt:7000,scale:'penta'}
 };
 
 /* rhythm libraries — 8th-note positions across 2 bars, one set per meter */
@@ -853,13 +913,36 @@ export const GROOVES={
   afro:{sw:.18,crash:false,fills:['percRun','tomDown','triplet'],
     a:{k:'X..x..X...x..x..',s:'....x..g....x...',cb:'x.x.xx.x.x.xx.x.',S:'gogogogogogogogo'},
     b:{k:'X..x..X...x.....',s:'....x..g....x.g.',cb:'x.x.xx.x.x.xx.x.',S:'gogogogogogogogo'},
-    opt:[{min:.35,v:{p:'...x..x....x.x..',pl:'......x.......x.'}}]}
+    opt:[{min:.35,v:{p:'...x..x....x.x..',pl:'......x.......x.'}}]},
+  // 2ステップの DnB：1拍目と3拍目の裏にキック、2・4拍目にスネア
+  dnb:{sw:0,crash:true,fills:['snareRoll','hatRoll','kickSnare','triplet'],
+    a:{k:'X.........x.....',s:'....X..g....X...',h:'x.x.x.x.x.x.x.x.'},
+    b:{k:'X.x.......x.....',s:'....X..g.g..X..g',h:'x.x.x.x.x.x.x.O.'},
+    opt:[{min:.35,v:{S:'gogogogogogogogo'}},{min:.6,v:{R:'x...x...x...x...'}}]},
+  // アーメン・ブレイク風：ライドで刻み、スネアが細かく跳ねる
+  amen:{sw:.06,crash:true,fills:['snareRoll','kickSnare','stop','triplet'],
+    a:{k:'X.x.......xx....',s:'....X..g.g..X..g',R:'x.x.x.x.x.x.x.x.'},
+    b:{k:'X.x.......x.....',s:'....X..g.g....X.',R:'x.x.x.x.x.x.x.x.',c:'..............x.'},
+    opt:[{min:.4,v:{h:'.g.g.g.g.g.g.g.g'}},{min:.65,v:{s:'.?.....?...?....'}}]},
+  trance:{sw:0,crash:true,fills:['snareRoll','snareBuild','hatRoll'],
+    a:{k:'X...X...X...X...',c:'....x.......x...',O:'..X...X...X...X.',h:'xgx.xgx.xgx.xgx.'},
+    b:{k:'X...X...X...X...',c:'....x.......x..?',O:'..X...X...X...X.',h:'xgx.xgx.xgx.xgxg'},
+    opt:[{min:.4,v:{S:'gogogogogogogogo'}},{min:.65,v:{t:'....x.......x...'}}]},
+  // ガバ：キックに808を重ねて硬く太く
+  gabber:{sw:0,crash:true,gain:1,fills:['snareRoll','kickSnare','hatRoll'],
+    a:{k:'X...X...X...X...',B:'x...x...x...x...',O:'..x...x...x...x.',c:'....x.......x...'},
+    b:{k:'X...X...X...X.xx',B:'x...x...x...x...',O:'..x...x...x.....',c:'....x.......x...'},
+    opt:[{min:.4,v:{h:'xgxgxgxgxgxgxgxg'}}]},
+  minimal:{sw:.12,crash:false,fills:['rimClick','hatBark','stop'],
+    a:{k:'X...X...X...X...',r:'...x.....x....x.',h:'..g...g...g...g.'},
+    b:{k:'X...X...X...X..g',r:'...x..x..x....x.',h:'..g...g...g...O.'},
+    opt:[{min:.35,v:{S:'gogogogogogogogo'}},{min:.6,v:{bl:'.......x........'}}]}
 };
 /* the old kits reach the fill library through their DRUM_STYLE fill family */
 export const OLD_FILLS={tom:['tomDown','flamTom','kickSnare','tomUp'],snare:['snareRoll','snareBuild','triplet'],
   rim:['rimClick','triplet'],perc:['percRun','rimClick']};
 export const HAT_KITS=['pop','four','breaks','funk','halftime','house','disco','funk16','boombap','rock',
-  'twostep','trap','chipdrum','onedrop'];
+  'twostep','trap','chipdrum','onedrop','dnb','trance','gabber','minimal'];
 
 /* ---- fills: n 16th steps starting at p8 `from` ---- */
 export function renderFill(type,from,n,rng,out){
@@ -1058,18 +1141,21 @@ export function clashScore(song){
 export const OMAKASE={
   preset:{nonbiri:1,fuwafuwa:0,pokopoko:2,yofukashi:1,oudou:2,omise:1,canon:1,dorian:1,lydian:0,
     mixo:1,mokumoku:1,waltz:1,sway:0,blue:1,chip:2,ambi:0,kurikaeshi:1,longrun:2,midnight:2,
-    neon:2,funk:2,mellow:1,dosshiri:0},
+    neon:2,funk:2,mellow:1,dosshiri:0,minimal:1,hiphop:1,dnb:2,breakbeat:2,trance:2,hardcore:2},
   lead:{marimba:[0,1,2],box:[0,1],vibes:[0,1],kalimba:[0,1,2],pluck:[1,2],rhodes:[0,1,2],
-    whistle:[0,1],toy:[2],synth:[2],bell:[0,1],glock:[0,1,2],flute:[0,1],steel:[1,2],harp:[0,1],brass:[1,2]},
+    whistle:[0,1],toy:[2],synth:[2],bell:[0,1],glock:[0,1,2],flute:[0,1],steel:[1,2],harp:[0,1],brass:[1,2],
+    saw:[2],supersaw:[2],square:[1,2],organ:[1,2],grit:[2],bow:[0,1]},
   pad:{vibes:[0,1,2],pad:[0,1],organ:[1,2],guitar:[1],stab:[2],strings:[0,1],piano:[0,1,2],
-    choir:[0,1],chip:[2],clav:[2]},
+    choir:[0,1],chip:[2],clav:[2],supersaw:[2],warm:[0,1],square:[2],epiano:[0,1,2],brass:[1,2]},
   bass:{two:[1],walk:[1],bounce:[1,2],whole:[0,1],offbeat:[2],pulse:[2],octave:[2],synco:[1,2],
     arp:[0,1],funk:[2]},
   kit:{brush:[1],pop:[2],night:[0,1],tick:[0,1],none:[0,1],four:[2],halftime:[0,1,2],bossa:[1],
     breaks:[2],soft:[0,1],funk:[2],house:[2],disco:[2],funk16:[1,2],boombap:[1,2],lofi:[0,1],
-    rock:[2],twostep:[1,2],onedrop:[0,1],samba:[1,2],march:[1,2],jazz:[0,1],trap:[1,2],chipdrum:[2],afro:[1,2]},
+    rock:[2],twostep:[1,2],onedrop:[0,1],samba:[1,2],march:[1,2],jazz:[0,1],trap:[1,2],chipdrum:[2],afro:[1,2],
+    dnb:[2],amen:[2],trance:[2],gabber:[2],minimal:[1,2]},
   only4:{kit:['four','bossa','breaks','funk','halftime','house','disco','funk16','boombap','lofi',
-    'rock','twostep','onedrop','samba','march','jazz','trap','chipdrum','afro'],bass:['funk']},
+    'rock','twostep','onedrop','samba','march','jazz','trap','chipdrum','afro',
+    'dnb','amen','trance','gabber','minimal'],bass:['funk']},
   // scales that ignore the chords entirely stay out of the dice
   noDice:['wholetone']
 };
@@ -1091,7 +1177,7 @@ export function omakase(rand){
   };
   const lead=fits(O.lead,LEAD_KEYS,null,P.lead), pad=fits(O.pad,PAD_KEYS,null,P.pad);
   const bassStyle=fits(O.bass,BASS_KEYS,O.only4.bass,P.bass), drums=fits(O.kit,KIT_KEYS,O.only4.kit,P.drums);
-  const straightKit=['four','breaks','funk','pop','house','disco','rock','chipdrum','march','trap'].includes(drums);
+  const straightKit=['four','breaks','funk','pop','house','disco','rock','chipdrum','march','trap','dnb','trance','gabber'].includes(drums);
   const swing=P.swing===0 ? (R()<.8||straightKit?0:Math.floor(R()*20))
     : Math.max(0,Math.min(100,P.swing+Math.round((R()-.5)*24)));
   const bpm=Math.max(52,Math.min(176,Math.round(P.bpm*(0.9+R()*.2))));
@@ -1322,17 +1408,36 @@ export function createRig(opts){
   // one bus per part: its gain is the part's fader, and reverb sends are taken
   // after it so the wet signal follows the fader too
   const bus={lead:new Tone.Gain(1),chord:new Tone.Gain(1),bass:new Tone.Gain(1),drum:new Tone.Gain(1)};
-  Object.values(bus).forEach(g=>g.connect(master));
+  // opts.pan (editor): a stereo panner per part. channelCount 2 upmixes first, so
+  // at 0 it passes the signal untouched; without it the graph is exactly as before
+  const pans={};
+  for(const [k,g] of Object.entries(bus)){
+    if(o.pan){ pans[k]=new Tone.Panner({pan:0,channelCount:2}); g.connect(pans[k]); pans[k].connect(master); }
+    else g.connect(master);
+  }
+  // opts.pan (editor) also gets an insert chain per part, in front of the fader:
+  // in → lowpass → high shelf → distortion → compressor → makeup → bus.
+  // Every stage starts transparent; without opts.pan the parts go straight into the bus.
+  const inp={}, fx={};
+  for(const k of Object.keys(bus)){
+    if(!o.pan){ inp[k]=bus[k]; continue; }
+    const f={in:new Tone.Gain(1),lp:new Tone.Filter({type:'lowpass',frequency:20000,Q:.5}),
+      shelf:new Tone.Filter({type:'highshelf',frequency:3200,gain:0}),
+      dist:new Tone.Distortion({distortion:0,wet:0,oversample:'2x'}),
+      comp:new Tone.Compressor({threshold:-.1,ratio:1,attack:.008,release:.16}),makeup:new Tone.Gain(1)};
+    f.in.chain(f.lp,f.shelf,f.dist,f.comp,f.makeup,bus[k]);
+    inp[k]=f.in; fx[k]=f;
+  }
   const drumWet=new Tone.Gain(1); if(verb) drumWet.connect(verb);
 
   const lead=new Tone.PolySynth(Tone.FMSynth,LEADS.marimba.cfg);
-  lead.volume.value=-9; lead.connect(bus.lead);
+  lead.volume.value=-9; lead.connect(inp.lead);
   const leadSend=mkSend(); bus.lead.connect(leadSend);
 
   const chords=new Tone.PolySynth(Tone.Synth,PADS.vibes.cfg);
   chords.volume.value=-14;
   const chFilt=new Tone.Filter({type:'lowpass',frequency:2600,Q:.3});
-  chords.connect(chFilt); chFilt.connect(bus.chord);
+  chords.connect(chFilt); chFilt.connect(inp.chord);
   const chordSend=mkSend(); bus.chord.connect(chordSend);
 
   const bass=new Tone.MonoSynth({
@@ -1340,86 +1445,89 @@ export function createRig(opts){
     envelope:{attack:.012,decay:.3,sustain:.45,release:.35},
     filterEnvelope:{attack:.01,decay:.2,sustain:.35,release:.3,baseFrequency:110,octaves:2.4},
     filter:{Q:1.2,type:'lowpass'}});
-  bass.volume.value=-9; bass.connect(bus.bass);
+  bass.volume.value=-9; bass.connect(inp.bass);
   const bassSend=mkSend(); bus.bass.connect(bassSend);
 
   const kick=new Tone.MembraneSynth({pitchDecay:.035,octaves:5.5,
     envelope:{attack:.001,decay:.28,sustain:0,release:.2}});
-  kick.volume.value=-11; kick.connect(bus.drum);
+  kick.volume.value=-11; kick.connect(inp.drum);
 
   const shHP=new Tone.Filter({type:'highpass',frequency:5200});
   const shaker=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.045,sustain:0}});
-  shaker.volume.value=-20; shaker.connect(shHP); shHP.connect(bus.drum);
+  shaker.volume.value=-20; shaker.connect(shHP); shHP.connect(inp.drum);
   const shSend=mkSend(drumWet); shHP.connect(shSend);
 
   const rimBP=new Tone.Filter({type:'bandpass',frequency:1700,Q:2.2});
   const rim=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.08,sustain:0}});
-  rim.volume.value=-14; rim.connect(rimBP); rimBP.connect(bus.drum);
+  rim.volume.value=-14; rim.connect(rimBP); rimBP.connect(inp.drum);
   const rimSend=mkSend(drumWet); rimBP.connect(rimSend);
 
   const clapBP=new Tone.Filter({type:'bandpass',frequency:1200,Q:1.4});
   const clap=new Tone.NoiseSynth({noise:{type:'pink'},envelope:{attack:.002,decay:.14,sustain:0}});
-  clap.volume.value=-14; clap.connect(clapBP); clapBP.connect(bus.drum);
+  clap.volume.value=-14; clap.connect(clapBP); clapBP.connect(inp.drum);
   const clapSend=mkSend(drumWet); clapBP.connect(clapSend);
 
   const hatHP=new Tone.Filter({type:'highpass',frequency:7200});
   const hat=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.035,sustain:0}});
-  hat.volume.value=-24; hat.connect(hatHP); hatHP.connect(bus.drum);
+  hat.volume.value=-24; hat.connect(hatHP); hatHP.connect(inp.drum);
 
   // snare = a short tuned body under band-limited noise
   const snHP=new Tone.Filter({type:'highpass',frequency:1500});
   const snare=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.001,decay:.13,sustain:0}});
-  snare.volume.value=-17; snare.connect(snHP); snHP.connect(bus.drum);
+  snare.volume.value=-17; snare.connect(snHP); snHP.connect(inp.drum);
   const snBody=new Tone.MembraneSynth({pitchDecay:.02,octaves:1.6,
     envelope:{attack:.001,decay:.09,sustain:0,release:.05}});
-  snBody.volume.value=-21; snBody.connect(bus.drum);
+  snBody.volume.value=-21; snBody.connect(inp.drum);
   const snSend=mkSend(drumWet); snHP.connect(snSend);
 
   const ohHP=new Tone.Filter({type:'highpass',frequency:6400});
   const ohat=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.002,decay:.26,sustain:0}});
-  ohat.volume.value=-27; ohat.connect(ohHP); ohHP.connect(bus.drum);
+  ohat.volume.value=-27; ohat.connect(ohHP); ohHP.connect(inp.drum);
 
   const crHP=new Tone.Filter({type:'highpass',frequency:4200});
   const crash=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.003,decay:1.5,sustain:0}});
-  crash.volume.value=-31; crash.connect(crHP); crHP.connect(bus.drum);
+  crash.volume.value=-31; crash.connect(crHP); crHP.connect(inp.drum);
   const crSend=mkSend(drumWet); crHP.connect(crSend);
 
   const tom=new Tone.MembraneSynth({pitchDecay:.05,octaves:2,
     envelope:{attack:.001,decay:.34,sustain:0,release:.2}});
-  tom.volume.value=-15; tom.connect(bus.drum);
+  tom.volume.value=-15; tom.connect(inp.drum);
   const tomSend=mkSend(drumWet); tom.connect(tomSend);
 
   const perc=new Tone.MembraneSynth({pitchDecay:.012,octaves:1.2,
     envelope:{attack:.001,decay:.17,sustain:0,release:.1}});
-  perc.volume.value=-19; perc.connect(bus.drum);
+  perc.volume.value=-19; perc.connect(inp.drum);
   const percSend=mkSend(drumWet); perc.connect(percSend);
 
   const boom=new Tone.MembraneSynth({pitchDecay:.09,octaves:3,
     envelope:{attack:.001,decay:1.0,sustain:0,release:.4}});
-  boom.volume.value=-10; boom.connect(bus.drum);
+  boom.volume.value=-10; boom.connect(inp.drum);
 
   const rideBP=new Tone.Filter({type:'bandpass',frequency:5600,Q:1.3});
   const ride=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.002,decay:.55,sustain:0}});
-  ride.volume.value=-25; ride.connect(rideBP); rideBP.connect(bus.drum);
+  ride.volume.value=-25; ride.connect(rideBP); rideBP.connect(inp.drum);
   const rideSend=mkSend(drumWet); rideBP.connect(rideSend);
 
   const tambHP=new Tone.Filter({type:'highpass',frequency:7800});
   const tamb=new Tone.NoiseSynth({noise:{type:'white'},envelope:{attack:.004,decay:.09,sustain:0}});
-  tamb.volume.value=-23; tamb.connect(tambHP); tambHP.connect(bus.drum);
+  tamb.volume.value=-23; tamb.connect(tambHP); tambHP.connect(inp.drum);
 
   const cbBP=new Tone.Filter({type:'bandpass',frequency:820,Q:2.5});
   const cbA=new Tone.Synth({oscillator:{type:'square'},envelope:{attack:.001,decay:.11,sustain:0,release:.05}});
   const cbB=new Tone.Synth({oscillator:{type:'square'},envelope:{attack:.001,decay:.08,sustain:0,release:.04}});
   cbA.volume.value=-27; cbB.volume.value=-29;
-  cbA.connect(cbBP); cbB.connect(cbBP); cbBP.connect(bus.drum);
+  cbA.connect(cbBP); cbB.connect(cbBP); cbBP.connect(inp.drum);
 
   const block=new Tone.MembraneSynth({pitchDecay:.004,octaves:.7,
     envelope:{attack:.001,decay:.05,sustain:0,release:.03}});
-  block.volume.value=-17; block.connect(bus.drum);
+  block.volume.value=-17; block.connect(inp.drum);
   const blockSend=mkSend(drumWet); block.connect(blockSend);
 
   const rig={master,colour,lead,chords,bass,kick,shaker,rim,clap,hat,
-    snare,snBody,ohat,crash,tom,perc,boom,ride,tamb,cbA,cbB,block,hasVerb:!!verb};
+    snare,snBody,ohat,crash,tom,perc,boom,ride,tamb,cbA,cbB,block,hasVerb:!!verb,
+    bus,pans,fx,verb,sends:{lead:leadSend,chord:chordSend,bass:bassSend},drumWet};
+  // reverb length in seconds (editor). Rebuilding the impulse is cheap enough to do on release of a slider
+  rig.setReverb=function(sec){ if(verb){ try{ verb.buffer=makeIR(sec,2.6); }catch(e){} } };
   rig.setLevels=function(st,ramp){
     const t=(ramp===undefined)?0.06:ramp;
     for(const k of Object.keys(bus)){

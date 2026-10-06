@@ -1,0 +1,465 @@
+---
+// ループBGMスタジオ エディタ版。サイトのヘッダー・フッターなしの単体ページ
+const title = "LOOP BGM STUDIO エディタ - t4traw.net";
+const description =
+  "ジャンルを選んで曲調を作ったら、音符を1つずつ動かしたり、トラックごとに音量・定位・残響を調整したりできるループBGMエディタ。JSONで保存して続きから編集でき、MIDI・WAV・CAFで書き出せる。";
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/apps/loop-bgm-studio/icon.png" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <a class="brand" href="/apps/loop-bgm-studio" title="ループBGMスタジオ">
+          <img src="/apps/loop-bgm-studio/logo.svg" alt="LOOP BGM STUDIO" width="218" height="89" />
+        </a>
+        <div class="files">
+          <button id="btnLoad" type="button" class="hw icon" aria-label="JSONを読み込む" title="JSONを読み込む（ドラッグ&ドロップでも）">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4.5h16v15H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 16V8.5M8.8 11.5 12 8.3l3.2 3.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="menuwrap">
+            <button id="btnSave" type="button" class="hw icon" aria-label="保存・書き出し" aria-haspopup="true" aria-expanded="false" title="保存・書き出し">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h11.5L19.5 7.5v12H4.5v-15z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 4.8v4.4h7V4.8M7.5 19v-5.5h9V19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            </button>
+            <div id="saveMenu" class="menu" hidden>
+              <button type="button" data-exp="json"><b>JSONで保存</b><span>あとで読み込んで続きから編集できる（⌘S）</span></button>
+              <hr />
+              <button type="button" data-exp="mid"><b>MIDI</b><span>トラックごとに分かれた標準MIDI</span></button>
+              <button type="button" data-exp="wav"><b>WAV</b><span>継ぎ目なくループする音源</span></button>
+              <button type="button" data-exp="pcm"><b>CAF・無劣化</b><span>iOS / macOS のゲーム向け</span></button>
+              <button type="button" data-exp="ima4"><b>CAF・軽量</b><span>IMA4。容量1/4</span></button>
+            </div>
+          </div>
+          <input id="fileIn" type="file" accept=".json,application/json" hidden />
+          <div class="zoom undo" role="group" aria-label="取り消し">
+            <button id="btnUndo" type="button" aria-label="取り消す（⌘Z）" title="取り消す（⌘Z）">戻す</button>
+            <button id="btnRedo" type="button" aria-label="やり直す（⇧⌘Z）" title="やり直す（⇧⌘Z）">進む</button>
+          </div>
+        </div>
+        <label class="vol">
+          <span>音量（試聴用）</span><output id="volOut">72</output>
+          <input id="vol" type="range" min="0" max="100" />
+        </label>
+      </header>
+
+      <div class="strip">
+        <div class="now"><b id="chordName">—</b><span id="barCount"></span></div>
+        <label class="f"><span>テンポ</span><input id="bpm" type="number" min="52" max="176" step="1" /></label>
+        <label class="f"><span>キー</span><select id="key"></select></label>
+        <label class="f"><span>はね</span><input id="swing" type="range" min="0" max="100" /><output id="swingOut"></output></label>
+        <label class="f"><span>まるさ</span><input id="tone" type="range" min="0" max="100" /><output id="toneOut"></output></label>
+        <label class="f"><span>長さ</span><select id="bars"><option value="16">16小節</option><option value="32">32小節</option><option value="64">64小節</option></select><output id="lenInfo"></output></label>
+        <span class="grow"></span>
+        <button id="btnFollow" type="button" class="tog" aria-pressed="true" title="再生位置を追いかける（F）">追尾</button>
+        <button id="btnCompact" type="button" class="tog drum-only" aria-pressed="true" title="使っている楽器の行だけ出す">使う行だけ</button>
+        <label class="f"><span id="gridLabel">グリッド</span><select id="grid"><option value="2">1/4</option><option value="1" selected>1/8</option><option value="0.5">1/16</option><option value="0.25">1/32</option></select></label>
+        <div class="zoom pitched-only" role="group" aria-label="表示の拡大">
+          <button id="zoomOut" type="button" aria-label="縮小">−</button>
+          <button id="zoomFit" type="button" aria-label="全体を表示">全体</button>
+          <button id="zoomIn" type="button" aria-label="拡大">＋</button>
+        </div>
+      </div>
+
+      <div id="rollWrap" class="roll"><canvas id="roll" aria-label="ピアノロール"></canvas></div>
+
+      <div class="under deck">
+        <div class="genbox">
+          <div class="gen">
+            <button id="btnGenre" type="button" class="hw taupe">ジャンル選択</button>
+            <button id="btnDice" type="button" class="hw taupe" title="ジャンルをおまかせで切り替える（テンポはそのまま）">おまかせ</button>
+            <button id="btnRegen" type="button" class="hw taupe"><span id="regenLabel">メロディ再生成</span></button>
+          </div>
+          <span class="genre-now">いまの曲調：<b id="genreName"></b></span>
+        </div>
+        <div class="transport" role="group" aria-label="再生">
+          <button id="toStart" type="button" class="hw big-sub" aria-label="先頭に戻る" title="先頭に戻る（Enter）">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5.5h2.4v13H6zM19 5.5v13L9.5 12z" fill="currentColor"/></svg>
+          </button>
+          <button id="playBig" type="button" class="hw big-play" aria-label="再生" title="再生・停止（スペース）">
+            <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></svg>
+            <svg class="i-pause hide" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5.5h3.6v13H7zM13.4 5.5H17v13h-3.6z" fill="currentColor"/></svg>
+          </button>
+        </div>
+        <div class="brushbox">
+        <div class="brushes" role="group" aria-label="ブラシ">
+          <button type="button" class="tool" data-tool="edit" aria-pressed="true" title="ふつうの編集（V）">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4l11 7-5 1.2L9.6 17z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg><span>編集</span>
+          </button>
+          <button type="button" class="tool" data-tool="melody" aria-pressed="false" title="塗った所のメロディを作り直す。縦の幅が音域の目安（B で切り替え）">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 16c3-6 5-6 7.5-2s4.5 4 9-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>メロディ変更</span>
+          </button>
+          <button type="button" class="tool" data-tool="drama" aria-pressed="false" title="塗った所を盛り上げる。重ねるほど強く、⌥で弱める">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span>ドラマ</span>
+          </button>
+          <!-- ハネのブラシはいまは非表示。使うときは hidden を外し、editor.js の SHOWN_TOOLS に 'hane' を戻す -->
+          <button type="button" class="tool" data-tool="hane" aria-pressed="false" hidden title="塗った所を跳ねさせる。重ねるほど強く、⌥でまっすぐに">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17c2-7 4-7 5 0M10 17c2-7 4-7 5 0M17 17c1-4 2.5-6 4-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>ハネ</span>
+          </button>
+        </div>
+        <label class="f bsize" title="ブラシの太さ（[ ]）"><span>ブラシの太さ</span><input id="brushSize" type="range" min="6" max="48" /></label>
+        </div>
+      </div>
+      <div class="under under2">
+        <div id="pageBar" class="pagebar drum-only">
+          <span class="pair">
+            <button id="pgPrev" type="button" aria-label="前のページ" title="前のページ（←）">◀</button>
+            <b id="pageLabel"></b>
+            <button id="pgNext" type="button" aria-label="次のページ" title="次のページ（→）">▶</button>
+          </span>
+          <label class="f"><span>表示</span><select id="pageBars"><option value="1">1小節</option><option value="2">2小節</option><option value="4">4小節</option></select></label>
+          <span class="pair">
+            <button id="pgCopy" type="button" title="このページをコピー（⌘C）">コピー</button>
+            <button id="pgPaste" type="button" title="このページに貼り付け（⌘V）">貼り付け</button>
+            <button id="pgRepeat" type="button" title="このページを曲の最後までくり返す（R）">最後までくり返す</button>
+            <button id="pgClear" type="button" title="このページを空にする">空にする</button>
+          </span>
+        </div>
+        <div id="selBar" class="selbar pitched-only" data-on="false">
+          <span id="selCount"></span>
+          <span class="selops">
+            <label class="f"><span>強さ</span><input id="selVel" type="range" min="5" max="100" /><output id="selVelOut"></output></label>
+            <span id="selOct" class="pair"><button id="selOctDown" type="button" title="1オクターブ下げる（⇧↓）">−8va</button><button id="selOctUp" type="button" title="1オクターブ上げる（⇧↑）">+8va</button></span>
+            <button id="selQuant" type="button" title="グリッドにそろえる（Q）">そろえる</button>
+            <button id="selDup" type="button" title="すぐ後ろに複製（⌘D）">複製</button>
+            <button id="selRepeat" type="button" title="選んだ小節ぶんを曲の最後までくり返す（R）">最後までくり返す</button>
+            <button id="selDel" type="button" title="けす（Delete）">けす</button>
+          </span>
+        </div>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <section id="tracks" class="tracks" aria-label="トラック"></section>
+
+      <details class="help">
+        <summary>操作のしかた</summary>
+        <div class="help-grid">
+          <dl>
+            <dt>音を置く</dt><dd>空いた所をクリック（そのまま右へドラッグで長さ）</dd>
+            <dt>動かす</dt><dd>音をドラッグ。右端をつかむと長さ。矢印キーでも（⇧で1オクターブ・1小節）</dd>
+            <dt>けす</dt><dd>ダブルクリック、右クリック、⌥クリック、Delete</dd>
+            <dt>まとめて選ぶ</dt><dd>⇧ドラッグで囲む、⇧クリックで足す、⌘A で全部</dd>
+          </dl>
+          <dl>
+            <dt>コピー</dt><dd>⌘C → 置きたい所をクリック → ⌘V。⌘D ですぐ後ろに複製</dd>
+            <dt>ドラム</dt><dd>マスを押すと点く・もう一度押すと消える。横になぞると連続で。点いたマスを上下にドラッグで強さ、⇧で強く打つ。右ドラッグで消しゴム。←→でページ送り</dd>
+            <dt>トラック</dt><dd>1〜4 キーか下の行をクリックで、編集するトラックを切り替え</dd>
+            <dt>表示</dt><dd>⌘+ホイール（ピンチ）で横、⌥+ホイールで縦の拡大。上の数字の帯をクリックで再生位置。F で追尾のオン・オフ</dd>
+            <dt>強さ</dt><dd>いちばん下の帯をなぞると強弱を描ける。ドラムは行の名前をクリックすると、その楽器だけ</dd>
+            <dt>再生</dt><dd>スペースで再生・一時停止、Enter で頭に戻る。⌘Z で取り消し</dd>
+          </dl>
+        </div>
+        <p>編集した曲はこのブラウザにも自動で残る。別の端末やあとで使うときは保存ボタンの「JSONで保存」で。音はすべてブラウザの中で合成していて、どこにも送られない。</p>
+      </details>
+    </div>
+
+    <dialog id="genreDlg" class="dlg">
+      <div class="dlg-head">
+        <h2>ジャンル選択</h2>
+        <button id="dlgClose" type="button" class="x" aria-label="閉じる">×</button>
+      </div>
+      <p class="dlg-note">曲調（コード進行・テンポ・編成）を選ぶと、新しい曲がまるごとできる。今の編集は ⌘Z で戻せる。ミキサーの設定は引き継ぐ。</p>
+      <div class="dlg-row">
+        <label class="f"><span>長さ</span><select id="dlgBars"><option value="16">16小節</option><option value="32">32小節</option><option value="64">64小節</option></select></label>
+        <button id="dlgDice" type="button" class="hw taupe">ぜんぶおまかせ</button>
+        <span class="dlg-note">おまかせはテンポをいまのまま変えない</span>
+      </div>
+      <div id="genreList" class="genres"></div>
+      <details class="more">
+        <summary>その他</summary>
+        <div id="genreMore" class="genres"></div>
+      </details>
+      <div class="dlg-code">
+        <label for="codeIn">レシピコードから作る</label>
+        <div class="dlg-row">
+          <input id="codeIn" spellcheck="false" autocomplete="off" placeholder="1I1MYKBI2-TFC6R2398-…" />
+          <button id="codeApply" type="button" class="hw taupe">作る</button>
+        </div>
+        <p id="codeStatus" class="dlg-note"></p>
+      </div>
+    </dialog>
+
+    <script>
+      import { startEditor } from "../../../scripts/loop-bgm-studio/editor/editor.js";
+      // Tone.js は重いので、最初に音を出すときに読み込む
+      startEditor({ loadTone: () => import("tone") });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #1c1c1c;
+    --panel: #121212;
+    --line: #2c2c2c;
+    --text: #e9e6dc;
+    --muted: #8f8c80;
+    --olive: #9a9d75;
+    --olive-d: #6f7152;
+    --taupe: #8e8173;
+    --taupe-d: #64594d;
+    --red: #ec4a3e;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 13px/1.5 "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-drop="true"] .roll { outline: 2px dashed var(--olive); outline-offset: 4px; }
+  .hide { display: none; }
+  /* display を指定した部品にも hidden を効かせる */
+  [hidden] { display: none !important; }
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  .app { max-width: 1280px; margin: 0 auto; padding: 28px 16px 64px; }
+  @media (min-width: 900px) { .app { padding: 44px 40px 80px; } }
+
+  /* ---- 上の帯 ---- */
+  .top {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto 1fr;
+    align-items: center;
+    gap: 18px;
+    padding: 0 6px 18px;
+  }
+  .brand img { display: block; width: 74px; height: auto; }
+  .files { display: flex; align-items: center; gap: 6px; }
+  .files .undo { margin-left: 8px; font-size: 11.5px; }
+  .menuwrap { position: relative; }
+  .vol { grid-column: 5; justify-self: end; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: min(118px, 100%); font-size: 9px; color: var(--muted); }
+  .vol output { color: var(--text); font-weight: 700; font-size: 10px; }
+  .vol input { grid-column: 1 / -1; }
+  @media (max-width: 640px) {
+    .top { grid-template-columns: auto 1fr; gap: 12px; }
+    .vol { grid-column: 1 / -1; justify-self: stretch; width: auto; }
+  }
+
+  .hw {
+    border: 0;
+    border-radius: 3px;
+    background: var(--olive);
+    color: #f6f4ea;
+    box-shadow: 0 3px 0 var(--olive-d), inset 0 1px 0 rgba(255, 255, 255, .18);
+    transition: transform .06s, box-shadow .06s, filter .15s;
+  }
+  .hw:hover { filter: brightness(1.07); }
+  .hw:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--olive-d); }
+  .hw:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+  .hw.icon { width: 30px; height: 26px; display: grid; place-items: center; }
+  .hw.icon svg { width: 17px; height: 17px; }
+  .hw.taupe { display: inline-flex; align-items: center; height: 32px; background: var(--taupe); box-shadow: 0 3px 0 var(--taupe-d), inset 0 1px 0 rgba(255, 255, 255, .15); padding: 0 11px; font-weight: 600; font-size: 12.5px; }
+  .hw.taupe:active { box-shadow: 0 1px 0 var(--taupe-d); }
+
+  .menu {
+    position: absolute; z-index: 20; top: calc(100% + 10px); left: 0;
+    width: 250px; padding: 6px;
+    background: #232323; border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .5);
+  }
+  .menu button {
+    display: block; width: 100%; text-align: left; padding: 8px 10px;
+    background: none; border: 0; border-radius: 6px;
+  }
+  .menu button:hover, .menu button:focus-visible { background: #2f2f2f; outline: none; }
+  .menu b { display: block; font-size: 13px; }
+  .menu span { display: block; font-size: 11px; color: var(--muted); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 5px 4px; }
+
+  /* range（音量など） */
+  input[type="range"] { accent-color: #8f8c80; height: 16px; cursor: pointer; margin: 0; }
+
+  /* ---- 曲の設定の帯 ---- */
+  .strip {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+    padding: 0 6px 10px; color: var(--muted); font-size: 11.5px;
+  }
+  .strip .grow { flex: 1; }
+  .now { display: flex; align-items: baseline; gap: 8px; min-width: 104px; }
+  .now b { color: var(--text); font-size: 15px; }
+  .now span { font-variant-numeric: tabular-nums; }
+  .f { display: inline-flex; align-items: center; gap: 6px; }
+  .f output { color: var(--text); font-variant-numeric: tabular-nums; min-width: 2.2em; }
+  .f input[type="range"] { width: 72px; }
+  .f select, .f input[type="number"], .dlg input {
+    background: #141414; border: 1px solid var(--line); border-radius: 6px;
+    padding: 3px 6px; color: var(--text);
+  }
+  .f input[type="number"] { width: 58px; }
+  .f select:focus-visible, .f input:focus-visible { outline: 1px solid var(--olive); }
+  body[data-track="drum"] .pitched-only, body:not([data-track="drum"]) .drum-only { display: none !important; }
+  .tog { background: #141414; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; color: var(--muted); }
+  .tog[aria-pressed="true"] { background: #2b2c22; border-color: var(--olive); color: var(--text); }
+  .pagebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--muted); font-size: 11.5px; }
+  .pagebar .pair { align-items: center; }
+  .pagebar b { color: var(--text); min-width: 8.5em; text-align: center; font-variant-numeric: tabular-nums; }
+  .pagebar button:disabled { opacity: .35; cursor: default; }
+  .zoom { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .zoom button { background: #141414; border: 0; padding: 3px 9px; color: var(--text); min-width: 30px; }
+  .zoom button + button { border-left: 1px solid var(--line); }
+  .zoom button:hover:not(:disabled) { background: #222; }
+  .zoom button:disabled { color: #4a4a4a; cursor: default; }
+
+  /* ---- ピアノロール ---- */
+  .roll {
+    position: relative;
+    height: clamp(300px, 56vh, 620px);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--panel);
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .4);
+  }
+  .roll canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* ---- ロールの下 ---- */
+  .under { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; padding: 16px 6px 0; }
+  .brushes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tool {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+    background: #e9e6dc; color: #2a2a26; border: 0; border-radius: 4px;
+    box-shadow: 0 3px 0 #a9a596; font-weight: 600; font-size: 12px;
+    transition: transform .06s, box-shadow .06s, background .15s;
+  }
+  .tool svg { width: 17px; height: 17px; }
+  .tool:active { transform: translateY(2px); box-shadow: 0 1px 0 #a9a596; }
+  .tool[aria-pressed="true"] { background: #d6cf86; box-shadow: 0 3px 0 #8f8a55, 0 0 0 2px rgba(214, 207, 134, .35); }
+  .tool[data-tool="edit"] { padding: 0 10px; }
+  .brushbox { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .bsize { color: var(--muted); font-size: 11.5px; }
+  .bsize input { width: 140px; }
+  @media (max-width: 640px) { .brushbox { align-items: stretch; } .bsize input { flex: 1; } }
+  .under2 { padding-top: 12px; }
+  .gen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .genre-now { color: var(--muted); font-size: 11.5px; }
+  .deck { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; }
+  .deck .brushbox { justify-self: end; }
+  .genbox { display: flex; flex-direction: column; gap: 10px; }
+  .transport { display: flex; align-items: center; gap: 10px; }
+  .hw.big-play { width: 56px; height: 32px; display: grid; place-items: center; }
+  .hw.big-play svg { width: 18px; height: 18px; }
+  .hw.big-sub { width: 40px; height: 32px; display: grid; place-items: center; }
+  .hw.big-sub svg { width: 15px; height: 15px; }
+  @media (max-width: 900px) {
+    .deck { grid-template-columns: 1fr; justify-items: start; }
+    .deck .transport { justify-self: center; order: -1; }
+    .deck .brushbox { justify-self: stretch; align-items: flex-start; }
+  }
+  .genre-now b { color: var(--text); }
+  .selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; color: var(--muted); font-size: 11.5px; }
+  .selbar[data-on="false"] .selops { display: none; }
+  .selops { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .selops > button, .pair button {
+    background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; color: var(--text);
+  }
+  .selops > button:hover, .pair button:hover { border-color: var(--olive); }
+  .pair { display: inline-flex; gap: 4px; }
+  .status { min-height: 1.5em; margin: 10px 6px 0; color: var(--muted); font-size: 12px; }
+  .status[data-bad="true"] { color: #ff9b92; }
+
+  /* ---- トラック ---- */
+  .tracks { margin-top: 22px; border-top: 1px solid var(--line); }
+  .trk {
+    display: grid;
+    grid-template-columns: 180px minmax(170px, 1.1fr) minmax(300px, 2fr) auto;
+    align-items: center; gap: 10px 22px;
+    padding: 12px 8px; border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .trk[data-cur="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 12%, transparent), transparent 60%); }
+  .trk[data-cur="true"]::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 2px; background: var(--c); }
+  .trk[data-silent="true"] .trk-name b, .trk[data-silent="true"] .trk-mix { opacity: .45; }
+  .trk-name {
+    display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 4px 6px; text-align: left;
+  }
+  .trk-name i { width: 22px; height: 7px; border-radius: 4px; background: var(--c); flex: none; }
+  .trk-name b { font-size: 13.5px; white-space: nowrap; }
+  .trk-name kbd { font: 10px ui-monospace, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .trk-name small { color: var(--muted); font-size: 10.5px; margin-left: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .trk-sound { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+  .fld { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+  .fld select { background: #141414; border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; color: var(--text); max-width: 150px; }
+  .trk-mix { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 16px; }
+  .knob { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+  .knob input { width: 100%; accent-color: var(--c); }
+  .knob output { color: var(--text); font-variant-numeric: tabular-nums; min-width: 2.4em; text-align: right; }
+  .trk-btns { display: flex; gap: 6px; }
+  .adv {
+    display: inline-grid; place-items: center; width: 30px; height: 26px; padding: 0;
+    background: #1a1a1a; border: 1px solid var(--line); border-radius: 6px; color: var(--muted);
+  }
+  .adv svg { width: 16px; height: 16px; }
+  .adv:hover, .adv[aria-expanded="true"] { border-color: var(--c); color: var(--text); }
+  .adv[data-on="true"] { color: var(--c); }
+  .trk-adv {
+    grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 32px;
+    margin: 4px 0 2px; padding: 14px 16px; background: #171717; border: 1px solid var(--line); border-radius: 10px;
+  }
+  .adv-col { display: grid; gap: 8px; align-content: start; }
+  .adv-col h4 { margin: 0 0 2px; font-size: 12px; color: var(--text); }
+  .adv-col h4 small { margin-left: 8px; font-weight: 400; color: var(--muted); font-size: 10.5px; }
+  .adv-col .knob span { min-width: 5.5em; }
+  .adv-note { margin: 0; color: var(--muted); font-size: 10.5px; }
+  .adv-foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+  .ms {
+    width: 28px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: #1a1a1a;
+    font-weight: 700; font-size: 11px; color: var(--muted);
+  }
+  .ms[data-act="mute"][aria-pressed="true"] { background: #5a5a52; color: #fff; border-color: #5a5a52; }
+  .ms[data-act="solo"][aria-pressed="true"] { background: var(--olive); color: #fff; border-color: var(--olive); }
+  .regen { border: 1px solid var(--line); background: #1a1a1a; border-radius: 6px; padding: 3px 10px; font-size: 11.5px; }
+  .regen:hover, .ms:hover { border-color: var(--c); }
+  @media (max-width: 980px) {
+    .trk { grid-template-columns: 1fr auto; }
+    .trk-sound, .trk-mix { grid-column: 1 / -1; }
+    .trk-btns { grid-row: 1; grid-column: 2; }
+  }
+  @media (max-width: 520px) { .trk-mix { grid-template-columns: 1fr; } }
+
+  /* ---- 操作のしかた ---- */
+  .help { margin-top: 26px; padding: 0 6px; color: var(--muted); font-size: 12px; }
+  .help summary { cursor: pointer; color: var(--text); font-weight: 600; }
+  .help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 32px; }
+  .help dl { display: grid; grid-template-columns: 7em 1fr; gap: 6px 12px; margin: 14px 0 0; }
+  .help dt { color: var(--text); }
+  .help dd { margin: 0; }
+
+  /* ---- ジャンル選択 ---- */
+  .dlg {
+    width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+    background: #1f1f1f; color: var(--text); border: 1px solid var(--line); border-radius: 16px; padding: 22px;
+  }
+  .dlg::backdrop { background: rgba(0, 0, 0, .62); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: center; }
+  .dlg h2 { margin: 0; font-size: 16px; }
+  .x { background: none; border: 0; font-size: 22px; color: var(--muted); line-height: 1; padding: 4px 8px; }
+  .dlg-note { color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
+  .dlg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .genres { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin: 16px 0 18px; }
+  .genre {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left;
+    background: #171717; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  .genre:hover, .genre:focus-visible { border-color: var(--olive); outline: none; }
+  .genre[aria-pressed="true"] { border-color: var(--olive); background: #22231c; }
+  .genre b { font-size: 13.5px; }
+  .genre em { font-style: normal; font-size: 10.5px; color: var(--muted); }
+  .genre span { grid-column: 1 / -1; font-size: 11px; color: var(--muted); line-height: 1.45; }
+  .more { margin: -6px 0 18px; }
+  .more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  .more .genres { margin: 10px 0 0; }
+  .dlg-row .dlg-note { margin: 0; }
+  .dlg-code label { font-weight: 600; font-size: 12.5px; }
+  .dlg-code .dlg-row { margin-top: 6px; }
+  .dlg input { flex: 1 1 260px; font: 12.5px ui-monospace, monospace; letter-spacing: .04em; padding: 6px 8px; }
+</style>

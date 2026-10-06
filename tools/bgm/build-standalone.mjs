@@ -119,7 +119,7 @@ ${fs.readFileSync(path.join(here,'standalone.css'),'utf8')}
 <div class="wrap">
 
 <header class="top">
-  <h1>ループBGMスタジオ<span class="sub">土台から組み替えて、飽きないループをつくる</span></h1>
+  <h1>ループBGMスタジオ<span class="sub">曲調から組み替えて、飽きないループをつくる</span></h1>
   <button class="themebtn" id="theme" type="button">表示を切り替え</button>
 </header>
 
@@ -140,7 +140,7 @@ ${fs.readFileSync(path.join(here,'standalone.css'),'utf8')}
 </section>
 
 <section class="deck">
-  <h2>土台<span class="note">コード進行・拍子・テンポ・編成のひな型</span></h2>
+  <h2>曲調<span class="note">コード進行・拍子・テンポ・編成のひな型</span></h2>
   <div class="moods" id="moods">
     ${Object.entries(E.PRESETS).map(([k,p])=>`<button type="button" class="mood" data-k="${k}" aria-pressed="false"><b>${esc(p.label)}</b><i>${p.beats}拍子 · ${p.bpm} BPM${p.swing?' · はねる':''}</i><span>${esc(p.desc)}</span></button>`).join('\n    ')}
   </div>

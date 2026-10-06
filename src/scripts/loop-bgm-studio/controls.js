@@ -13,7 +13,7 @@
     section  どの欄に出すか（SECTIONS のキー）
     label    ラベル
     min/max  範囲（省略時 0〜100）
-    def      新しく開いたときの値（土台で決まるものは土台の値で上書きされる）
+    def      新しく開いたときの値（曲調で決まるものは曲調の値で上書きされる）
     zero     0 のときに数字の代わりに出す言葉
     unit     数字のうしろにつける単位
     on       動かしたときに何をするか（app.js の EFFECTS）
@@ -100,7 +100,7 @@ export function knobText(k,v){
   return v+(k.unit||'');
 }
 
-/* 新しく開いたときの状態。土台の既定（テンポ・はね・音階・編成）を入れてから部品の既定値を入れる */
+/* 新しく開いたときの状態。曲調の既定（テンポ・はね・音階・編成）を入れてから部品の既定値を入れる */
 export function defaultState(presetKey){
   const k=presetKey||'nonbiri', P=PRESETS[k];
   const st={

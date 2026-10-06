@@ -4,7 +4,7 @@
   ここは触らなくていい。
 
   マークアップ側の約束:
-    #moods [data-k]            土台ボタン
+    #moods [data-k]            曲調ボタン
     #selKey #selScale          キー・音階
     [data-part] 行             data-off / [data-spk] / [data-pvol] / [data-pout]、select は PARTS の selId
     input[data-knob=id]        スライダー、output[data-knob-out=id] が表示

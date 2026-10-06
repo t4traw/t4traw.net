@@ -9,9 +9,9 @@
   検査:
     golden    互換コードと固定乱数の設定500件が、記録した「演奏の指紋」と完全一致（＝同じ演奏）
     roundtrip レシピコードの往復（ランダム3000件）
-    range     全土台×全ドラム×全音階（ベースは巡回）で、ループ外・音域外・長さ0・NaN がない
+    range     全曲調×全ドラム×全音階（ベースは巡回）で、ループ外・音域外・長さ0・NaN がない
     starts    単音の楽器（ベースと全ドラム）で同じ瞬間の発音がない（Tone.js が書き出しで止まる原因）
-    omakase   おまかせ1000件のぶつかり度が土台の上限以内、3拍子に4拍子専用ドラムなし
+    omakase   おまかせ1000件のぶつかり度が曲調の上限以内、3拍子に4拍子専用ドラムなし
 */
 import fs from 'node:fs'; import path from 'node:path'; import vm from 'node:vm'; import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -60,7 +60,7 @@ const CODES=['0ASFDP-DF84AR-5HJF3P-4BR7R','0UB7W4Q-TUUYLA9-FTAM93V-VWLLC','2HPLF
   'A5MBXU5XA-ZCCYKEHRF-HX10TJJYP-DYBJ93Y5J-0VYUWZ21Q','A68KEXJBN-3VUBGXNSV-746R14U80-2SQPOHHHH-YTLHHS8X9',
   'A6FL091XO-N1E841I6P-YSULVA9YE-MIQ29KFLR-EZPOW66NW','A407FO9QB-0H0P3EC98-EJNRZJEQL-5XFROHGIL-8L6Y8KU8U',
   'A50P5MEMX-B6M5L04BK-LFDDDQ28L-FSB14QFJY-EPDHD8KQO'];
-/* GOLDEN_BEGIN — 2026-10-01 v7 で記録 */
+/* GOLDEN_BEGIN — 2026-10-01 v7 で記録（random500 は 2026-10-06 に曲調6つ・キット5つ、2026-10-07 に音色11個を足して更新） */
 const GOLDEN={
   "codes": {
     "0ASFDP-DF84AR-5HJF3P-4BR7R": "6a8be5e7ab9e973a",
@@ -87,7 +87,7 @@ const GOLDEN={
     "A407FO9QB-0H0P3EC98-EJNRZJEQL-5XFROHGIL-8L6Y8KU8U": "720f9fdade158569",
     "A50P5MEMX-B6M5L04BK-LFDDDQ28L-FSB14QFJY-EPDHD8KQO": "cac86f563e140242"
   },
-  "random500": "13cb989f0cfa6588"
+  "random500": "996aec39cc4f72cd"
 };
 /* GOLDEN_END */
 

@@ -5,7 +5,7 @@
   エンジンを改修してもこのファイルは直さなくていい。既定値は controls.js の defaultState。
 
   使い方（リポジトリの直下で）:
-    node tools/bgm/bgm-tool.mjs list                         土台・音色・音階の一覧
+    node tools/bgm/bgm-tool.mjs list                         曲調・音色・音階の一覧
     node tools/bgm/bgm-tool.mjs decode <code>                レシピコードを設定(JSON)に戻す
     node tools/bgm/bgm-tool.mjs describe <code>              人が読める要約（進行・尺・編成）
     node tools/bgm/bgm-tool.mjs encode '<json>'              設定からレシピコードを作る（省略項目は既定値）
@@ -47,7 +47,7 @@ function summary(st){
   const layers=['octUp','harm','counter'].filter(k=>st.mel[k]);
   const cnt=k=>song.events.filter(e=>e.kind==='lead'&&e.layer==='main').length;
   return [
-    `土台: ${P.label} (${st.preset})  調: ${tonic}  ${P.beats}拍子  ${st.bpm}BPM  はね${st.swing}`,
+    `曲調: ${P.label} (${st.preset})  調: ${tonic}  ${P.beats}拍子  ${st.bpm}BPM  はね${st.swing}`,
     `長さ: ${song.bars}小節 = ${secs.toFixed(1)}秒`,
     `音色: メロディ=${E.LEADS[st.lead].name} 伴奏=${E.PADS[st.pad].name} ベース=${E.BASSES[st.bassStyle].name} ドラム=${E.KITS[st.drums].name}`,
     `メロディ: 音階=${E.SCALES[st.scale].name} 音数${st.mel.dens} 幅${st.mel.range} 跳ね${st.mel.leap} 高さ${st.mel.oct} 重ね=[${layers.join(',')||'なし'}]  主旋律${cnt()}音`,
@@ -78,7 +78,7 @@ function validate(st){
 const cmd=args[0];
 try{
   if(cmd==='list'){
-    console.log('== 土台 (preset) ==');
+    console.log('== 曲調 (preset) ==');
     for(const k of E.MOOD_KEYS){const P=E.PRESETS[k];
       console.log(`${k.padEnd(11)} ${P.label}\t${P.beats}拍子 ${P.bpm}BPM はね${P.swing} ${E.PC[P.tonic]}${P.minor?'m':''} 既定[${P.lead}/${P.pad}/${P.bass}/${P.drums}/${P.scale}] ${P.plan==='minimal'?'反復型':''}\n            ${P.desc}`);}
     const t=(n,o)=>console.log(`== ${n} ==\n`+Object.entries(o).map(([k,v])=>`${k}=${v.name}`).join('  '));
