@@ -3,7 +3,7 @@
   曲調はレシピ（ジャンル＋タネ）から作り、そこから先はノートを直接いじる。保存は JSON。
 
   canvas の中の縦の並び:
-    メロディ・伴奏・ベース … 定規（小節番号・和音）/ ピアノロール / ドラムのしるし / 強さのレーン
+    メロディ・コード・ベース … 定規（小節番号・和音）/ ピアノロール / ドラムのしるし / 強さのレーン
     ドラム               … 小節の一覧（ページ選び）/ ステップシーケンサー / 強さのレーン
   追尾がオンで再生中は、ピアノロールは再生位置を左寄りに止めて譜面を流し（オルゴールのように）、
   ドラムは再生中の小節へページをめくる。ループの継ぎ目でも途切れないよう、流すときは前後の周回も描く。
@@ -11,6 +11,8 @@
 import * as E from "../engine.js";
 import { defaultState } from "../controls.js";
 import * as P from "./project.js";
+import * as S from "./sounds.js";
+import * as F from "./fx.js";
 
 const { TRACKS, PITCHED, TRACK_INFO, DRUM_ROWS } = P;
 const STORE = 'loop-bgm-editor:v1';
@@ -53,6 +55,10 @@ export function startEditor({ loadTone }) {
   const audio = { ready: false, loading: null, rig: null, playing: false, vol: clamp(+pref('vol', 72), 0, 100) };
   let follow = pref('follow', true);
   let compact = pref('compact', true);    // ドラムで使っている行だけ出す
+  // 設定画面の項目（このブラウザだけ。曲の JSON には入れない）
+  const cfg = Object.assign({ hudChord: false, rulerChord: true, dotFont: true, autosave: true }, pref('cfg', {}));
+  // canvas の文字。ドットのフォントは太字がないので、太さは指定しない（にじんだ太字になるため）
+  const FONT = (w, px) => cfg.dotFont ? px + 'px "DotGothic16", ui-sans-serif, system-ui, sans-serif' : w + ' ' + px + 'px ui-sans-serif, system-ui, sans-serif';
   let tool = 'edit';                      // edit / melody / mood / rhythm（ブラシ）
   let brushR = clamp(+pref('brushR', 18), 6, 48);   // ブラシの半径（px）
   let hoverPt = null;                     // ブラシの丸を出す位置
@@ -148,6 +154,7 @@ export function startEditor({ loadTone }) {
     syncStrip(); syncTracks(); syncSel(); draw();
   }
   function saveLocal() {
+    if (!cfg.autosave) return;
     try { localStorage.setItem(STORE, P.toJSON(proj)); } catch (e) { }
   }
 
@@ -164,7 +171,7 @@ export function startEditor({ loadTone }) {
         applySound(0);
         audio.rig.master.volume.value = E.masterDb(audio.vol);
         reschedule();
-        if (!audio.rig.hasVerb) setStatus('この環境では残響が作れなかったから、ドライで鳴らしてる');
+        if (!audio.rig.hasVerb) setStatus('この環境ではリバーブが作れなかったから、ドライで鳴らしてる');
         return true;
       } catch (e) {
         setStatus('音源を読み込めなかった。通信環境を変えて開き直してみて', true);
@@ -211,7 +218,14 @@ export function startEditor({ loadTone }) {
   async function togglePlay() {
     if (!(await ensureAudio())) return;
     const t = E.TR();
-    if (audio.playing) { t.pause(); audio.playing = false; scrollX = mod(scrollX / zoomX) * zoomX; clampScroll(); }
+    if (audio.playing) {
+      t.pause(); audio.playing = false;
+      scrollX = mod(scrollX / zoomX) * zoomX;
+      // ループの継ぎ目をまたいで流れていたときは、止めた位置が画面に入るように合わせ直す
+      const x = X(playheadT());
+      if (x < gutter() || x > viewW() - 20) scrollX = playheadT() * zoomX - ANCHOR * (viewW() - gutter());
+      clampScroll();
+    }
     else {
       t.start(); audio.playing = true; tick();
     }
@@ -222,6 +236,20 @@ export function startEditor({ loadTone }) {
     cursorT = 0; scrollX = 0; page = 0;
     if (audio.ready) E.TR().ticks = 0;
     clampScroll(); syncPage(); draw();
+  }
+  /* 4小節ぶん戻る：4小節のまとまりの頭へ。頭から半小節以内なら、もう1つ前のまとまりへ（ループの頭なら最後へ） */
+  function backBars() {
+    const block = 4 * epb(), t = audio.playing ? playheadT() : cursorT;
+    let to = Math.floor(t / block) * block;
+    if (t - to < epb() / 2) to -= block;
+    to = mod(to);
+    seek(to);
+    if (isDrum()) { page = Math.floor(to / pageLen()); syncPage(); }
+    else if (!smooth()) {
+      const x = X(to);
+      if (x < gutter() || x > viewW() - 40) { scrollX = to * zoomX - 40; clampScroll(); }
+    }
+    draw();
   }
   function seek(t8) {
     cursorT = clamp(mod(t8), 0, end() - .001);
@@ -309,7 +337,13 @@ export function startEditor({ loadTone }) {
   let drawPending = 0;
   function draw() {
     if (drawPending || audio.playing) return;   // 再生中は tick が毎フレーム描く
-    drawPending = requestAnimationFrame(() => { drawPending = 0; paint(); });
+    drawPending = requestAnimationFrame(() => { drawPending = 0; paint(); syncRowZoom(); });
+  }
+  // ⌥+ホイールや「全体」でも縦の幅が変わるので、描いたついでにスライダーを合わせる
+  function syncRowZoom() {
+    const el = $('rowZoom');
+    if (document.activeElement === el || +el.value === Math.round(rowH)) return;
+    el.value = Math.round(rowH); paintRange(el);
   }
   /* 強さのレーンで扱うノート */
   function laneTargets() {
@@ -351,8 +385,8 @@ export function startEditor({ loadTone }) {
     });
     cx.globalAlpha = 1; cx.restore();
     cx.fillStyle = '#171717'; cx.fillRect(0, lt + 1, G, LANE - 1);
-    cx.font = '600 10px ui-sans-serif, system-ui, sans-serif'; cx.textBaseline = 'top';
-    cx.fillStyle = C.text; cx.fillText('強さ', 8, lt + 9);
+    cx.font = FONT(600, 10); cx.textBaseline = 'top';
+    cx.fillStyle = C.text; cx.fillText('Vel', 8, lt + 9);
     cx.fillStyle = '#6d6a60'; cx.fillText(LT.label, 8, lt + 24);
 
     // 再生位置（ピアノロール。追尾中は何周目でも同じ場所に出るよう、いちばん近い周回で描く）
@@ -378,7 +412,7 @@ export function startEditor({ loadTone }) {
     // いまの和音と小節
     const bar = Math.floor(ph / epb());
     $('chordName').textContent = E.chordLabel(proj.chords[bar % proj.bars], proj.st.key, E.PRESETS[proj.st.preset].tonic);
-    $('barCount').textContent = (bar + 1) + ' / ' + proj.bars;
+    $('barCount').textContent = (bar + 1) + '/' + proj.bars;
   }
 
   /* ---- ピアノロール ---- */
@@ -427,14 +461,14 @@ export function startEditor({ loadTone }) {
     clipRect(G, 0, W - G, RULER);
     const barW = zoomX * epb(), step = barW < 34 ? 4 : barW < 60 ? 2 : 1;
     const tonic = E.PRESETS[proj.st.preset].tonic;
-    cx.font = '600 10px ui-sans-serif, system-ui, sans-serif'; cx.textBaseline = 'middle';
+    cx.font = FONT(600, 10); cx.textBaseline = 'middle';
     eachLap(() => {
       for (let b = 0; b < proj.bars; b++) {
         const x = X(b * epb());
         if (x > W || x + barW < G) continue;
         if (b === 0 && wrapOff !== 0) { cx.fillStyle = '#3a3a3a'; cx.fillRect(x, 3, 2, RULER - 6); }
         if (b % step === 0) { cx.fillStyle = b % 4 === 0 ? C.textHi : C.text; cx.fillText(String(b + 1), x + 5, RULER / 2); }
-        if (barW >= 64) { cx.fillStyle = '#7f7b6c'; cx.fillText(E.chordLabel(proj.chords[b], proj.st.key, tonic), x + 23, RULER / 2); }
+        if (barW >= 64 && cfg.rulerChord) { cx.fillStyle = '#7f7b6c'; cx.fillText(E.chordLabel(proj.chords[b], proj.st.key, tonic), x + 23, RULER / 2); }
       }
     });
     cx.restore();
@@ -452,7 +486,7 @@ export function startEditor({ loadTone }) {
     cx.restore();
     cx.fillStyle = '#171717'; cx.fillRect(0, 0, G, RULER);
     cx.fillStyle = '#101010'; cx.fillRect(0, bottom, G, DSTRIP);
-    if (smooth()) { cx.fillStyle = C.red; cx.font = '700 9px ui-sans-serif, system-ui, sans-serif'; cx.fillText('追尾', 9, RULER / 2); }
+    if (smooth()) { cx.fillStyle = C.red; cx.font = FONT(700, 9); cx.fillText('オート', 9, RULER / 2); }
 
     // 横スクロールのしるし
     const cw = end() * zoomX, vw = W - G;
@@ -538,6 +572,7 @@ export function startEditor({ loadTone }) {
         cx.globalAlpha = live; const fh = Math.max(4, hh * v);
         rr(x, yy + hh - fh, w, fh, 3); cx.fill();
         if (s === playing) { cx.globalAlpha = 1; cx.strokeStyle = '#fff'; cx.lineWidth = 1.5; rr(x, yy, w, hh, 3); cx.stroke(); }
+        if (list.some(h => sel.has(h))) { cx.globalAlpha = 1; cx.strokeStyle = '#d6cf86'; cx.lineWidth = 2; rr(x + 1, yy + 1, w - 2, hh - 2, 3); cx.stroke(); }
         // マスの頭からずれている音（ノリ・ハネ）と、1マスに2つ以上ある音のしるし
         cx.globalAlpha = 1; cx.fillStyle = '#121212';
         const off = list.filter(h => Math.abs(h.t - (p0 + s * st)) > .02);
@@ -546,6 +581,12 @@ export function startEditor({ loadTone }) {
       }
     });
     cx.globalAlpha = 1;
+    // 範囲選択
+    if (drag && drag.mode === 'stepBand') {
+      const x0 = Math.min(drag.x0, drag.x), y0 = Math.min(drag.y0, drag.y);
+      cx.fillStyle = C.band; cx.fillRect(x0, y0, Math.abs(drag.x - drag.x0), Math.abs(drag.y - drag.y0));
+      cx.strokeStyle = 'rgba(233,230,220,.5)'; cx.lineWidth = 1; cx.strokeRect(x0 + .5, y0 + .5, Math.abs(drag.x - drag.x0), Math.abs(drag.y - drag.y0));
+    }
     // 小節の区切り
     for (let b = 1; b < pageBars; b++) {
       const x = X(p0 + b * epb()) - 1;
@@ -558,7 +599,7 @@ export function startEditor({ loadTone }) {
     const n = proj.bars, bw = (W - G - 8) / n, perBar = new Array(n).fill(0);
     for (const h of proj.notes.drum) perBar[Math.min(n - 1, Math.floor(h.t / epb()))]++;
     const mx = Math.max(1, ...perBar), pb = Math.floor(ph / epb());
-    cx.font = '600 9px ui-sans-serif, system-ui, sans-serif'; cx.textBaseline = 'middle';
+    cx.font = FONT(600, 9); cx.textBaseline = 'middle';
     for (let b = 0; b < n; b++) {
       const x = G + b * bw, inPage = Math.floor(b / pageBars) === page;
       cx.fillStyle = inPage ? '#4d4b3c' : '#1f1f1f';
@@ -574,7 +615,7 @@ export function startEditor({ loadTone }) {
     cx.fillStyle = '#171717'; cx.fillRect(0, RULER, G, bottom - RULER);
     clipRect(0, RULER, G, bottom - RULER);
     const used = new Set(proj.notes.drum.map(P.drumRowOf));
-    cx.font = '600 11px ui-sans-serif, system-ui, sans-serif'; cx.textBaseline = 'middle';
+    cx.font = FONT(600, 11); cx.textBaseline = 'middle';
     visRows.forEach((ri, vi) => {
       const y = Yd(vi);
       if (y > bottom || y + dh < RULER) return;
@@ -586,8 +627,8 @@ export function startEditor({ loadTone }) {
     });
     cx.restore();
     cx.fillStyle = '#171717'; cx.fillRect(0, 0, G, RULER);
-    cx.font = '700 9px ui-sans-serif, system-ui, sans-serif'; cx.textBaseline = 'middle';
-    cx.fillStyle = following() ? C.red : C.text; cx.fillText(following() ? '追尾' : '小節', 9, RULER / 2);
+    cx.font = FONT(700, 9); cx.textBaseline = 'middle';
+    cx.fillStyle = following() ? C.red : C.text; cx.fillText(following() ? 'オート' : '小節', 9, RULER / 2);
     void H;
   }
 
@@ -637,7 +678,7 @@ export function startEditor({ loadTone }) {
       return;
     }
     // ブラシ：ノートの欄を塗る
-    if (tool !== 'edit' && e.button === 0 && py >= RULER && py < areaBottom() && px >= gutter()) {
+    if (isBrush() && e.button === 0 && py >= RULER && py < areaBottom() && px >= gutter()) {
       drag = Object.assign(base, { mode: 'brush', stroke: { tool, alt: e.altKey, lap: wrapOff, drum: isDrum(), pts: [] } });
       brushMove(px, py);
       return;
@@ -652,6 +693,22 @@ export function startEditor({ loadTone }) {
     const t = T(px);
     cursorT = clamp(snapFloor(t), 0, end() - grid());
 
+    // 選択モード：音をつかめば（選んで）移動、空いた所は囲んで選ぶ。音は置かない・消さない
+    if (tool === 'select') {
+      if (hit && e.button === 0) {
+        if (e.shiftKey || e.metaKey || e.ctrlKey) { if (sel.has(hit.note)) sel.delete(hit.note); else sel.add(hit.note); }
+        else if (!sel.has(hit.note)) { sel.clear(); sel.add(hit.note); }
+        const orig = new Map();
+        for (const x of sel) orig.set(x, Object.assign({}, x));
+        drag = Object.assign(base, { mode: 'move', note: hit.note, orig, snap: snap(), t0: t });
+        syncSel(); draw();
+        return;
+      }
+      if (!e.shiftKey) { sel.clear(); syncSel(); }
+      drag = Object.assign(base, { mode: 'band', keep: new Set(sel) });
+      draw();
+      return;
+    }
     // 右ボタン・⌥ は消しゴム（なぞった音をどんどん消す）
     if (e.button === 2 || e.altKey) {
       drag = Object.assign(base, { mode: 'erase', snap: snap(), n: 0 });
@@ -701,6 +758,7 @@ export function startEditor({ loadTone }) {
     const c = cellAt(px, py);
     if (!c) { drag = Object.assign(base, { mode: 'none' }); return; }
     focusRow = c.ri;
+    if (tool === 'select') { downStepSelect(e, c, base); return; }
     if (e.button === 2 || e.altKey) {
       drag = Object.assign(base, { mode: 'stepErase', snap: snap(), ri: c.ri, n: 0 });
       stepErase(c);
@@ -716,6 +774,23 @@ export function startEditor({ loadTone }) {
     pushUndo();
     stepAdd(c, e.shiftKey);
     drag = Object.assign(base, { mode: 'stepPaint', ri: c.ri, lastS: c.s, accent: e.shiftKey });
+  }
+  /* ドラムの選択モード：選んだマスをつかめば移動、そうでなければ囲んで選ぶ */
+  function downStepSelect(e, c, base) {
+    cursorT = c.t;
+    const picked = c.hits.length && c.hits.some(h => sel.has(h));
+    if (c.hits.length && !picked && !e.shiftKey) { sel = new Set(c.hits); }
+    else if (c.hits.length && e.shiftKey) { for (const h of c.hits) sel.add(h); }
+    if (c.hits.length) {
+      const orig = new Map();
+      for (const h of sel) orig.set(h, { t: h.t, ri: P.drumRowOf(h) });
+      drag = Object.assign(base, { mode: 'stepMove', orig, snap: snap(), c0: c });
+      previewDrum(c.hits[0]);
+    } else {
+      if (!e.shiftKey) sel.clear();
+      drag = Object.assign(base, { mode: 'stepBand', keep: new Set(sel) });
+    }
+    draw();
   }
   function stepAdd(c, accent) {
     const r = DRUM_ROWS[c.ri], h = { t: Math.round(c.t * 10000) / 10000, k: r.k, v: accent ? 1 : .75 };
@@ -770,7 +845,7 @@ export function startEditor({ loadTone }) {
           if (drag.snap) { pushUndo(drag.snap); drag.snap = null; }
           const v = clamp(drag.v0 + (drag.y0 - py) / 110, .05, 1);
           for (const h of drag.cell.hits) h.v = Math.round(v * 100) / 100;
-          $('status').textContent = '強さ ' + Math.round(v * 100);
+          $('status').textContent = 'ベロシティ ' + Math.round(v * 127);
           changed();
         } else {
           drag.mode = 'stepErase'; drag.ri = drag.cell.ri; drag.n = 0;
@@ -783,6 +858,42 @@ export function startEditor({ loadTone }) {
       case 'pan':
         scrollY = drag.sy - (py - drag.y0); clampScroll(); draw();
         break;
+      case 'stepBand': {
+        // 囲んだ範囲のマスにある音を選ぶ
+        const tA = T(Math.min(drag.x0, px)), tB = T(Math.max(drag.x0, px));
+        const vA = Math.floor((Math.min(drag.y0, py) - RULER - 2 + scrollY) / drow()), vB = Math.floor((Math.max(drag.y0, py) - RULER - 2 + scrollY) / drow());
+        const rows = new Set(visRows.slice(Math.max(0, vA), vB + 1));
+        const t0 = Math.floor(tA / st + 1e-6) * st, t1 = Math.ceil(tB / st - 1e-6) * st;
+        sel = new Set(drag.keep);
+        for (const h of proj.notes.drum) if (inPage(h) && h.t >= t0 - 1e-6 && h.t < t1 - 1e-6 && rows.has(P.drumRowOf(h))) sel.add(h);
+        draw(); setStatus(sel.size + '打を選んだ');
+        break;
+      }
+      case 'stepMove': {
+        // 横はステップ単位、縦は表示している行の単位で動かす
+        const c = cellAt(px, py) || drag.c0;
+        if (drag.snap) { pushUndo(drag.snap); drag.snap = null; }
+        const os = [...drag.orig.values()];
+        let dt = (c.s - drag.c0.s) * st;
+        dt = clamp(dt, -Math.min(...os.map(o => o.t)), end() - .001 - Math.max(...os.map(o => o.t)));
+        const vi0 = visRows.indexOf(drag.c0.ri), vi1 = visRows.indexOf(c.ri);
+        const vis = os.map(o => visRows.indexOf(o.ri));
+        let dv = vi1 - vi0;
+        if (vis.every(v => v >= 0)) dv = clamp(dv, -Math.min(...vis), visRows.length - 1 - Math.max(...vis)); else dv = 0;
+        for (const [h, o] of drag.orig) {
+          h.t = Math.round((o.t + dt) * 10000) / 10000;
+          const v = visRows.indexOf(o.ri);
+          if (v >= 0 && dv) {
+            const r = DRUM_ROWS[visRows[v + dv]];
+            h.k = r.k; if (r.g !== undefined) h.g = r.g; else delete h.g;
+          } else if (!dv) {
+            const r = DRUM_ROWS[o.ri]; h.k = r.k; if (r.g !== undefined) h.g = r.g; else delete h.g;
+          }
+        }
+        if (drag.lastDv !== dv) { if (dv) previewDrum([...drag.orig.keys()][0]); drag.lastDv = dv; }
+        changed();
+        break;
+      }
     }
   }
 
@@ -819,7 +930,7 @@ export function startEditor({ loadTone }) {
       if (drag && drag.snap) { pushUndo(drag.snap); drag.snap = null; }
       changed();
     }
-    $('status').textContent = '強さ ' + Math.round(v * 100);
+    $('status').textContent = 'ベロシティ ' + Math.round(v * 127);
   }
 
   cv.addEventListener('pointermove', e => {
@@ -913,7 +1024,7 @@ export function startEditor({ loadTone }) {
 
   function hover(px, py) {
     const inArea = py >= RULER && py < areaBottom() && px >= gutter();
-    if (tool !== 'edit') { hoverPt = inArea ? [px, py] : null; cv.style.cursor = inArea ? 'none' : 'pointer'; draw(); if (inArea) return; }
+    if (isBrush()) { hoverPt = inArea ? [px, py] : null; cv.style.cursor = inArea ? 'none' : 'pointer'; draw(); if (inArea) return; }
     if (py < RULER || px < gutter()) { cv.style.cursor = 'pointer'; return; }
     if (py >= laneTop()) { cv.style.cursor = 'ns-resize'; return; }
     if (isDrum()) { const c = cellAt(px, py); cv.style.cursor = c && c.hits.length ? 'ns-resize' : 'pointer'; return; }
@@ -955,33 +1066,42 @@ export function startEditor({ loadTone }) {
   new ResizeObserver(fit).observe(cv);
 
   /* ---------------- brushes ----------------
-     塗った範囲（時間。メロディは縦の幅も音域の目安にする）に表現をかける。
-     重ね塗りするほど強くなり（3段階）、⌥ を押しながら塗ると弱まる。
-       メロディ変更 … その範囲のメロディを新しいタネで作り直す。塗った縦の幅に音域を寄せる
-                      伴奏を選んでいるときは、和音のまま「てっぺんの音の流れ」だけを作り直す
-       ドラマ       … 伴奏・ベースを、和音のつなぎと盛り上がりを強めて作り直す。強弱も大きく、
-                      いちばん強いとメロディにオクターブ上を重ねる
-       ハネ         … 裏の8分・16分を後ろにずらして跳ねさせる（全トラック）
+     アレンジブラシ：いま選んでいるトラックを、なぞった所だけ書き換える。
+       メロディ … なぞった線の高さに沿って音程を付け直す（音階・コードの音に合わせる）。
+                  リズムと重ね方（オクターブ上・ハモリ・自分で積んだ和音）はそのまま。
+                  そこが空なら新しいタネでリズムを作る。⌥ を押しながらなぞるとリズムも作り直す
+       コード   … なぞった高さに和音のてっぺんを合わせて積み直す。音の数と響きはそのまま
+       ベース   … なぞった高さに近い、その小節の和音の音へ付け直す。⌥ でリズムも作り直す
+       ドラム   … なぞった所のパターンを新しいタネで作り直す。上のほうをなぞるほど手数が多い
+     ※ 以前の「メロディ変更」「ドラマ」はこれにまとめた（2026-10-07）。
      ※ ハネはいまは非表示（2026-10-07）。ずれが小さくてピアノロール・ステップ上で見た目がほとんど
        変わらず「効いてない？」と感じるため。処理は残してあるので、使うときは editor.astro の
-       data-tool="hane" ボタンの hidden を外し、下の SHOWN_TOOLS に 'hane' を戻す */
-  const TOOLS = ['edit', 'melody', 'drama', 'hane'];
-  const SHOWN_TOOLS = ['edit', 'melody', 'drama'];      // B キーで回すブラシ
+       data-tool="hane" ボタンの hidden を外し、キーボードの B の切り替えに 'hane' を足す */
+  const TOOLS = ['edit', 'select', 'arrange', 'hane'];
+  const ARRANGE_HINT = {
+    lead: 'アレンジブラシ（メロディ）：なぞった線の高さに沿ってメロディを書き換える。リズムはそのまま、⌥ を押しながらなぞるとリズムも作り直す',
+    chord: 'アレンジブラシ（コード）：なぞった高さに和音のてっぺんを合わせる。和音の数と響きはそのまま',
+    bass: 'アレンジブラシ（ベース）：なぞった高さに沿って、和音の音からベースを選び直す。⌥ でリズムも作り直す',
+    drum: 'アレンジブラシ（ドラム）：なぞった所のパターンを作り直す。上のほうをなぞるほど手数が多く、下ほど少なく',
+  };
   const TOOL_INFO = {
-    edit: { name: '編集', hint: '' },
-    melody: { name: 'メロディ変更', hint: 'メロディ変更：変えたい所をざっくり塗って。塗った縦の幅がだいたいの音域になる。伴奏を選んでいれば、和音のままてっぺんの音だけ変わる' },
-    drama: { name: 'ドラマ', hint: 'ドラマ：塗った所の伴奏とベースが盛り上がる。重ねて塗るほど強く、⌥ を押しながら塗ると落ち着く' },
-    hane: { name: 'ハネ', hint: 'ハネ：塗った所が跳ねる。重ねて塗るほど強く、⌥ を押しながら塗るとまっすぐに戻る' },
+    edit: { name: '編集', hint: () => '' },
+    select: { name: '選択', hint: () => isDrum()
+      ? '選択：マスをドラッグで囲んで選ぶ（⇧で足す）。選んだ所をつかんで移動、⌘C / ⌘X / ⌘V でコピー・切り取り・貼り付け（貼り付けは最後に押したマスへ）'
+      : '選択：空いた所をドラッグで囲んで選ぶ（⇧で足す）。選んだ音をつかんでまとめて移動、⌘C / ⌘X / ⌘V でコピー・切り取り・貼り付け（貼り付けは最後にクリックした位置へ）' },
+    arrange: { name: 'アレンジブラシ', hint: () => ARRANGE_HINT[cur] },
+    hane: { name: 'ハネ', hint: () => 'ハネ：塗った所が跳ねる。重ねて塗るほど強く、⌥ を押しながら塗るとまっすぐに戻る' },
   };
   const MAXLV = 3;
-  const levels = { drama: new Map(), hane: new Map() };   // 拍ごとの強さ（0〜3）。この画面を開いている間だけ覚える
+  const levels = { hane: new Map() };   // 拍ごとの強さ（0〜3）。この画面を開いている間だけ覚える
   const BRUSH = 'rgba(214,207,134,';
+  const isBrush = () => tool === 'arrange' || tool === 'hane';
+  const toolHint = () => TOOL_INFO[tool].hint() + (isBrush() ? '（[ ] で太さ、V か Esc で編集に戻る）' : '');
   function setTool(t) {
     tool = t;
     document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'));
-    if (t === 'melody' && (isDrum() || cur === 'bass')) setTrack('lead');
-    if (t === 'edit') { hoverPt = null; cv.style.cursor = ''; }
-    setStatus(TOOL_INFO[t].hint + (t !== 'edit' ? '（[ ] で太さ、V か Esc で編集に戻る）' : ''));
+    if (!isBrush()) { hoverPt = null; cv.style.cursor = ''; }
+    setStatus(toolHint());
     draw();
   }
   function setBrushR(r) {
@@ -1042,60 +1162,83 @@ export function startEditor({ loadTone }) {
     fading.push({ stroke, at: performance.now() });
     fadeLoop();
     if (!stroke.pts.length) return;
-    if (stroke.tool === 'melody') (cur === 'chord' ? brushChordTop : brushMelody)(stroke);
-    else if (stroke.tool === 'drama') brushDrama(stroke);
+    if (stroke.tool === 'arrange') ({ lead: brushLead, chord: brushChord, bass: brushBass, drum: brushDrum })[cur](stroke);
     else brushHane(stroke);
   }
   const lvName = e => ['なし', '弱', '中', '強'][Math.round(e * MAXLV)];
 
-  /* メロディ変更：新しいタネのメロディを持ってきて、塗った音域に寄せる */
-  function brushMelody(stroke) {
-    const { cells, band, cellOf, inC } = cover(stroke, 1);
+  /* なぞった線の高さ（音程）を、時間から引けるようにする。同じ所を何度もなぞったら最後の線 */
+  function contour(stroke, res = .25) {
+    const m = new Map(), n = Math.round(end() / res), P_ = stroke.pts;
+    const cell = t => ((Math.round(mod(t) / res) % n) + n) % n;
+    if (P_.length === 1) m.set(cell(P_[0].t), P_[0].n);
+    for (let i = 1; i < P_.length; i++) {
+      const a = P_[i - 1], b = P_[i], k = Math.max(1, Math.ceil(Math.abs(b.t - a.t) / (res / 2)));
+      for (let j = 0; j <= k; j++) { const f = j / k; m.set(cell(a.t + (b.t - a.t) * f), a.n + (b.n - a.n) * f); }
+    }
+    return t => {
+      const c = cell(t);
+      for (let d = 0; d <= 12; d++) for (const k of [c - d, c + d]) { const id = ((k % n) + n) % n; if (m.has(id)) return m.get(id); }
+      return null;
+    };
+  }
+  /* target にいちばん近い、pcs（音名の集合）に入る音。lo〜hi の中で */
+  function nearestIn(pcs, target, lo, hi) {
+    const tg = clamp(Math.round(target), lo, hi);
+    for (let d = 0; d <= 12; d++) for (const m of [tg - d, tg + d])
+      if (m >= lo && m <= hi && pcs.has(((m % 12) + 12) % 12)) return m;
+    return tg;
+  }
+  const chordAt = t => proj.chords[Math.floor(mod(t) / epb()) % proj.bars];
+
+  /* メロディ：リズムはそのまま（空なら新しいタネで）、音程をなぞった線に沿わせる */
+  function brushLead(stroke) {
+    const { cells, inC } = cover(stroke, 1);
+    const at = contour(stroke);
     const old = proj.notes.lead.filter(x => inC(x.t));
     const oldMain = old.filter(x => x.l === 'main');
-    // 塗る前の重ね方を覚える（曲調のオクターブ上・ハモリ・裏メロと、自分で積んだ和音）
+    // なぞる前の重ね方を覚える（曲調のオクターブ上・ハモリ・裏メロと、自分で積んだ和音）
     const empty = !old.length, M = proj.st.mel;
     const has = l => old.some(x => x.l === l) || (empty && M[{ oct: 'octUp', harm: 'harm', counter: 'counter' }[l]]);
     const layers = { oct: has('oct'), harm: has('harm'), counter: has('counter'), stack: stackShape(oldMain) };
-    const before = new Set(oldMain.map(x => x.t)).size;
-    const want = before || Math.max(1, Math.round(cells.size * .4));
-    let best = null, bestAll = null, bd = 1e9;
-    for (let i = 0; i < 8; i++) {
-      const all = buildWith({ seed: newSeed(), mel: Object.assign({}, M, { counter: true }) }).lead;
-      const cand = all.filter(x => x.l === 'main' && inC(x.t));
-      const d = Math.abs(cand.length - want);
-      if (d < bd) { bd = d; best = cand; bestAll = all; }
-      if (!d) break;
-    }
-    const sc = scalePcs();
-    const fit = x => {
-      const [lo, hi] = band.get(cellOf(x.t)) || [PMIN, PMAX];
-      let n = x.n;
-      // まずオクターブで寄せる。音域がせまくて入らなければ、範囲の中の音階の音に
-      while (n > hi && n - 12 >= PMIN) n -= 12;
-      while (n < lo && n + 12 <= PMAX) n += 12;
-      if (n > hi + 1 || n < lo - 1) {
-        const mid = (lo + hi) / 2;
-        let bestN = n, bdist = 1e9;
-        for (let m = Math.ceil(lo); m <= Math.floor(hi); m++)
-          if (sc.has(((m % 12) + 12) % 12) && Math.abs(m - mid) < bdist) { bdist = Math.abs(m - mid); bestN = m; }
-        n = bestN;
+    const fresh = stroke.alt || !oldMain.length;
+    let rhythm, bestAll = null;
+    if (!fresh) {
+      // 同じ瞬間に積んだ音は、いちばん上をメロディとして扱う（下は重ね方で付け直す）
+      const tops = new Map();
+      for (const x of oldMain) { const k = Math.round(x.t * 1000); if (!tops.has(k) || tops.get(k).n < x.n) tops.set(k, x); }
+      rhythm = [...tops.values()].map(x => Object.assign({}, x));
+    } else {
+      const want = Math.max(1, new Set(oldMain.map(x => x.t)).size || Math.round(cells.size * .4));
+      let bd = 1e9;
+      for (let i = 0; i < 8; i++) {
+        const all = buildWith({ seed: newSeed(), mel: Object.assign({}, M, { counter: true }) }).lead;
+        const cand = all.filter(x => x.l === 'main' && inC(x.t));
+        const d = Math.abs(cand.length - want);
+        if (d < bd) { bd = d; rhythm = cand; bestAll = all; }
+        if (!d) break;
       }
-      return n;
-    };
-    pushUndo();
-    proj.notes.lead = proj.notes.lead.filter(x => !inC(x.t));
-    const added = best.map(x => Object.assign({}, x, { n: fit(x) }));
-    proj.notes.lead.push(...added);
-    // 新しい音が次の音にかぶらないように長さを詰める
-    const main = proj.notes.lead.filter(x => x.l === 'main').sort((a, b) => a.t - b.t);
-    for (const x of added) {
-      const nx = main.find(y => y.t > x.t + 1e-6);
-      if (nx) x.d = Math.max(.25, Math.min(x.d, nx.t - x.t));
     }
-    // 覚えておいた重ね方を、新しい主旋律に付け直す
+    pushUndo();
+    // 裏メロはリズムを作り直したときだけ入れ替える
+    proj.notes.lead = proj.notes.lead.filter(x => !inC(x.t) || (!fresh && x.l === 'counter'));
+    for (const x of rhythm) {
+      const tg = at(x.t);
+      if (tg !== null) x.n = nearestIn(poolPcs(x.t), tg, 48, 103);
+      x.l = 'main';
+    }
+    proj.notes.lead.push(...rhythm);
+    if (fresh) {
+      // 新しい音が次の音にかぶらないように長さを詰める
+      const main = proj.notes.lead.filter(x => x.l === 'main').sort((a, b) => a.t - b.t);
+      for (const x of rhythm) {
+        const nx = main.find(y => y.t > x.t + 1e-6);
+        if (nx) x.d = Math.max(.25, Math.min(x.d, nx.t - x.t));
+      }
+    }
+    // 覚えておいた重ね方を付け直す
     const extra = [];
-    for (const x of added) {
+    for (const x of rhythm) {
       if (layers.oct && x.n + 12 <= 103) extra.push({ t: x.t, d: x.d, n: x.n + 12, v: r2(x.v * .42), l: 'oct' });
       if (layers.harm) { const h = poolBelow(x.t, x.n, 2); if (h !== null) extra.push({ t: x.t, d: x.d, n: h, v: r2(x.v * .52), l: 'harm' }); }
       if (layers.stack) for (const off of layers.stack) {
@@ -1103,12 +1246,45 @@ export function startEditor({ loadTone }) {
         if (h !== null) extra.push({ t: x.t, d: x.d, n: h, v: r2(x.v * .85), l: 'main' });
       }
     }
-    if (layers.counter) for (const x of bestAll) if (x.l === 'counter' && inC(x.t)) extra.push(Object.assign({}, x));
+    if (fresh && layers.counter) for (const x of bestAll) if (x.l === 'counter' && inC(x.t)) extra.push(Object.assign({}, x));
     proj.notes.lead.push(...extra);
     sel.clear();
     changed();
-    const kept = [layers.oct && 'オクターブ上', layers.harm && 'ハモリ', layers.counter && '裏メロ', layers.stack && '和音'].filter(Boolean);
-    setStatus('メロディを ' + Math.ceil(cells.size / 2) + ' 拍ぶん作り直した（' + added.length + '音' + (kept.length ? '・' + kept.join('と') + 'も付け直した' : '') + '）。気に入るまで何回でも塗ってみて');
+    setStatus('メロディ ' + rhythm.length + '音を、なぞった線に沿わせた' + (fresh ? '（リズムも新しく）' : '（リズムはそのまま。⌥ でリズムも作り直す）'));
+  }
+
+  /* ベース：なぞった高さにいちばん近い、その小節の和音の音へ */
+  function brushBass(stroke) {
+    const { inC } = cover(stroke, 1);
+    const at = contour(stroke);
+    pushUndo();
+    let list = proj.notes.bass.filter(x => inC(x.t));
+    if (!list.length || stroke.alt) {
+      list = buildWith({ seed: newSeed(), bassArr: 30 + Math.floor(Math.random() * 50) }).bass.filter(x => inC(x.t));
+      proj.notes.bass = proj.notes.bass.filter(x => !inC(x.t)).concat(list);
+    }
+    for (const x of list) {
+      const tg = at(x.t);
+      if (tg === null) continue;
+      const ch = chordAt(x.t), pcs = new Set(E.QUAL[ch[1]].map(i => (((i + ch[0] + proj.st.key) % 12) + 12) % 12));
+      x.n = nearestIn(pcs, tg, 28, 60);
+    }
+    sel.clear();
+    changed();
+    setStatus('ベース ' + list.length + '音を、なぞった高さに沿って和音の音から選び直した');
+  }
+
+  /* ドラム：なぞった所を新しいタネで。画面の上のほうをなぞるほど手数・フィルが多い */
+  function brushDrum(stroke) {
+    const { inC } = cover(stroke, 1);
+    const e = stroke.pts.reduce((a, p) => a + p.e, 0) / stroke.pts.length;
+    const v = Math.round(10 + 85 * e);
+    const nd = buildWith({ seed: newSeed(), drumBusy: v, drumFill: v, drumPlay: v }).drum.filter(x => inC(x.t));
+    pushUndo();
+    proj.notes.drum = proj.notes.drum.filter(x => !inC(x.t)).concat(nd);
+    sel.clear();
+    changed({ rows: true });
+    setStatus('ドラムを作り直した（手数 ' + v + '）。上のほうをなぞるほど細かく、下ほどシンプルに');
   }
 
   const r2 = v => Math.round(v * 100) / 100;
@@ -1152,10 +1328,11 @@ export function startEditor({ loadTone }) {
     return top.split(',').map(Number);
   }
 
-  /* 伴奏のてっぺん：同じ瞬間に鳴る音のまとまり（和音）ごとに、てっぺんの音を選び直して積み直す。
+  /* コード：同じ瞬間に鳴る音のまとまり（和音）ごとに、てっぺんをなぞった高さに合わせて積み直す。
      音の数と、使っている音の種類（響き）はそのまま */
-  function brushChordTop(stroke) {
-    const { band, cellOf, inC } = cover(stroke, 1);
+  function brushChord(stroke) {
+    const { inC } = cover(stroke, 1);
+    const at = contour(stroke);
     const stacks = new Map();
     for (const x of proj.notes.chord) if (inC(x.t)) {
       const id = Math.round(x.t * 1000);
@@ -1163,32 +1340,14 @@ export function startEditor({ loadTone }) {
       stacks.get(id).push(x);
     }
     const list = [...stacks.values()].sort((a, b) => a[0].t - b[0].t);
-    if (!list.length) { setStatus('塗った所に伴奏の和音がなかった'); return; }
+    if (!list.length) { setStatus('塗った所にコードの和音がなかった'); return; }
     pushUndo();
-    let prevTop = null;
     for (const st of list) {
       st.sort((a, b) => b.n - a.n);
       const pcs = [...new Set(st.map(x => ((x.n % 12) + 12) % 12))];
-      const [lo0, hi0] = band.get(cellOf(st[0].t)) || [st[0].n - 6, st[0].n + 6];
-      // てっぺんの候補：和音の音で、塗った音域の中（せまければ少し広げる）
-      let cand = [];
-      for (let w = 0; w <= 12 && cand.length < 2; w += 3) {
-        cand = [];
-        for (let n = Math.ceil(lo0 - w); n <= Math.floor(hi0 + w); n++)
-          if (n >= 52 && n <= 100 && pcs.includes(((n % 12) + 12) % 12)) cand.push(n);
-      }
-      if (!cand.length) continue;
-      // 前のてっぺんから1〜2段ずつ動く（たまに同じ音、たまに跳ぶ）
-      let i;
-      if (prevTop === null) i = Math.floor(cand.length / 2 + (Math.random() - .5) * cand.length * .6);
-      else {
-        const near = cand.reduce((b, n, k) => Math.abs(n - prevTop) < Math.abs(cand[b] - prevTop) ? k : b, 0);
-        const r = Math.random();
-        const step = r < .2 ? 0 : r < .62 ? 1 : r < .9 ? 2 : 3;
-        i = near + step * (Math.random() < .5 ? -1 : 1);
-        if (i < 0) i = -i; if (i >= cand.length) i = 2 * (cand.length - 1) - i;
-      }
-      const top = cand[clamp(i, 0, cand.length - 1)];
+      // てっぺん：和音の音のうち、なぞった高さにいちばん近いもの
+      const tg = at(st[0].t);
+      const top = nearestIn(new Set(pcs), tg === null ? st[0].n : tg, 52, 100);
       // てっぺんから下へ、元の和音の音を順に詰めて積む
       const topPc = ((top % 12) + 12) % 12;
       const rest = st.map(x => ((x.n % 12) + 12) % 12);
@@ -1205,38 +1364,10 @@ export function startEditor({ loadTone }) {
       // 低くなりすぎたら全体をオクターブ上げる（てっぺんが音域を出ない範囲で）
       while (voiced[voiced.length - 1] < 43 && voiced[0] + 12 <= 100) for (let k = 0; k < voiced.length; k++) voiced[k] += 12;
       st.forEach((x, k) => { x.n = voiced[k]; });
-      prevTop = voiced[0];
     }
     sel.clear();
     changed();
-    setStatus('伴奏の和音 ' + list.length + ' 個のてっぺんを作り直した（和音の数と響きはそのまま）。気に入るまで何回でも塗ってみて');
-  }
-
-  /* ドラマ：伴奏・ベースを作り直し、強弱を広げる。いちばん強いとメロディにオクターブ上 */
-  function brushDrama(stroke) {
-    const { cells, cellOf, inC } = cover(stroke, 2);
-    const { before, after } = bumpLevels('drama', cells, stroke.alt);
-    if (before === after && !stroke.alt && after === 1) { setStatus('ドラマはもう最大だよ（⌥ を押しながら塗ると落ち着く）'); return; }
-    const e = after;
-    const notes = buildWith({
-      seed: newSeed(), drama: Math.round(100 * e), density: Math.round(25 + 70 * e),
-      bassArr: Math.round(80 * e), arrange: 0,
-    });
-    pushUndo();
-    const gain = (.8 + .4 * e) / (.8 + .4 * before);
-    for (const k of ['chord', 'bass']) {
-      proj.notes[k] = proj.notes[k].filter(x => !inC(x.t));
-      for (const x of notes[k]) if (inC(x.t)) { x.v = Math.round(Math.min(1, x.v * (.8 + .4 * e)) * 100) / 100; proj.notes[k].push(x); }
-    }
-    for (const k of ['lead', 'drum']) for (const x of proj.notes[k]) if (inC(x.t)) x.v = Math.round(clamp(x.v * gain, .03, 1) * 100) / 100;
-    // メロディのオクターブ上：強のときだけ重ねる。弱めたら外す
-    proj.notes.lead = proj.notes.lead.filter(x => !(x.l === 'oct' && x.brush && inC(x.t)));
-    if (e >= 1) for (const x of proj.notes.lead.filter(y => y.l === 'main' && inC(y.t)))
-      if (x.n + 12 <= PMAX) proj.notes.lead.push({ t: x.t, d: x.d, n: x.n + 12, v: Math.round(x.v * .55 * 100) / 100, l: 'oct', brush: 1 });
-    void cellOf;
-    sel.clear();
-    changed();
-    setStatus('ドラマ「' + lvName(e) + '」で ' + cells.size + ' 拍ぶん作り直した');
+    setStatus('コードの和音 ' + list.length + ' 個のてっぺんを、なぞった高さに合わせた（和音の数と響きはそのまま）');
   }
 
   /* ハネ：裏の8分は最大で3連符ぶん、裏の16分は半分だけ後ろへ。前の強さのぶんを戻してからかけ直す */
@@ -1302,7 +1433,7 @@ export function startEditor({ loadTone }) {
       strokePath(f.stroke); cx.stroke();
     }
     if (drag && drag.mode === 'brush') { cx.strokeStyle = BRUSH + '.5)'; strokePath(drag.stroke); cx.stroke(); }
-    if (tool !== 'edit' && hoverPt) {
+    if (isBrush() && hoverPt) {
       cx.lineWidth = 1.5; cx.strokeStyle = BRUSH + '.9)';
       cx.beginPath(); cx.arc(hoverPt[0], hoverPt[1], brushR, 0, Math.PI * 2); cx.stroke();
     }
@@ -1411,7 +1542,34 @@ export function startEditor({ loadTone }) {
     if (np === page) return;
     page = np; syncPage(); draw();
   }
+  /* 選んだ打のコピー・切り取り・貼り付け（貼り付けは最後に押したマスから） */
+  let clipKind = 'page', clipHits = null;
+  function copyHits() {
+    if (!sel.size) return false;
+    const list = [...sel].filter(h => proj.notes.drum.includes(h)), lo = Math.min(...list.map(h => h.t));
+    clipHits = list.map(h => Object.assign({}, h, { t: h.t - lo })); clipKind = 'hits';
+    setStatus(list.length + '打をコピーした（貼り付けは最後に押したマスへ）');
+    return true;
+  }
+  function deleteHits() {
+    const n = sel.size;
+    edit(() => { proj.notes.drum = proj.notes.drum.filter(h => !sel.has(h)); sel.clear(); });
+    computeRows(); setStatus(n + '打けした');
+  }
+  function pasteHits(t0) {
+    if (!clipHits) return;
+    edit(() => {
+      sel.clear();
+      for (const h of clipHits) {
+        const y = Object.assign({}, h, { t: Math.round((h.t + t0) * 10000) / 10000 });
+        if (y.t >= end()) continue;
+        proj.notes.drum.push(y); sel.add(y);
+      }
+    });
+    computeRows(); setStatus(sel.size + '打を貼り付けた');
+  }
   function copyPage() {
+    clipKind = 'page';
     clipPage = { len: pageLen(), hits: proj.notes.drum.filter(inPage).map(h => Object.assign({}, h, { t: h.t - pageStart() })) };
     setStatus(pageName() + 'をコピーした（' + clipPage.hits.length + '打）');
     syncPage();
@@ -1471,16 +1629,20 @@ export function startEditor({ loadTone }) {
     const tag = (e.target.tagName || '').toLowerCase();
     if (['input', 'select', 'textarea'].includes(tag)) return;
     if (tag === 'button' && e.key === 'Enter') return;
-    if ($('genreDlg').open) return;
+    if (document.querySelector('dialog[open]')) return;
     const mod = e.metaKey || e.ctrlKey;
     const k = e.key.toLowerCase();
     if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if (mod && k === 'y') { e.preventDefault(); redo(); return; }
     if (mod && k === 's') { e.preventDefault(); exportAs('json'); return; }
     if (isDrum()) {
-      if (mod && k === 'c') { e.preventDefault(); copyPage(); return; }
-      if (mod && k === 'v') { e.preventDefault(); pastePage(); return; }
+      // 選んでいる打があれば、その打だけをコピー・切り取り。なければページごと
+      if (mod && k === 'c') { e.preventDefault(); if (!copyHits()) copyPage(); return; }
+      if (mod && k === 'x') { e.preventDefault(); if (copyHits()) deleteHits(); return; }
+      if (mod && k === 'v') { e.preventDefault(); if (clipKind === 'hits') pasteHits(cursorT); else pastePage(); return; }
+      if (mod && k === 'a' && tool === 'select') { e.preventDefault(); sel = new Set(proj.notes.drum.filter(inPage)); draw(); return; }
       if (mod) return;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && sel.size) { e.preventDefault(); deleteHits(); return; }
       if (e.key === 'ArrowLeft') { e.preventDefault(); setPage(page - 1); if (following()) setFollow(false); return; }
       if (e.key === 'ArrowRight') { e.preventDefault(); setPage(page + 1); if (following()) setFollow(false); return; }
       if (k === 'r') { repeatPage(); return; }
@@ -1502,7 +1664,8 @@ export function startEditor({ loadTone }) {
     if (mod) return;
     if (e.key === '[') { setBrushR(brushR - 4); return; }
     if (e.key === ']') { setBrushR(brushR + 4); return; }
-    if (k === 'b') { const br = SHOWN_TOOLS.slice(1); setTool(br[(br.indexOf(tool) + 1) % br.length]); return; }
+    if (k === 'b') { setTool(tool === 'arrange' ? 'edit' : 'arrange'); return; }
+    if (k === 's') { setTool(tool === 'select' ? 'edit' : 'select'); return; }
     if (k === 'v') { setTool('edit'); return; }
     if (e.key === 'Escape' && tool !== 'edit') { setTool('edit'); return; }
     if (e.key === 'Escape') { sel.clear(); focusRow = null; syncSel(); draw(); closeMenu(); return; }
@@ -1512,101 +1675,77 @@ export function startEditor({ loadTone }) {
   });
 
   /* ---------------- tracks panel ---------------- */
-  const opts = (tbl, v) => Object.entries(tbl).map(([k, o]) => `<option value="${k}"${k === v ? ' selected' : ''}>${o.name}</option>`).join('');
+  // アイコンは Remix Icon（https://remixicon.com/）の SVG をそのまま埋め込む
+  const ICON_TONE = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M21 18V21H19V18H17V15H23V18H21ZM5 18V21H3V18H1V15H7V18H5ZM11 6V3H13V6H15V9H9V6H11ZM11 11H13V21H11V11ZM3 13V3H5V13H3ZM19 13V3H21V13H19Z"/></svg>`;
+  const ICON_FX = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M5 11H19V5H5V11ZM21 4V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V4C3 3.44772 3.44772 3 4 3H20C20.5523 3 21 3.44772 21 4ZM19 13H5V19H19V13ZM7 15H10V17H7V15ZM7 7H10V9H7V7Z"/></svg>`;
+  const ICON_CLOSE = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg>`;
+  const ICON_DRAG = `<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M8.5 7C9.32843 7 10 6.32843 10 5.5C10 4.67157 9.32843 4 8.5 4C7.67157 4 7 4.67157 7 5.5C7 6.32843 7.67157 7 8.5 7ZM8.5 13.5C9.32843 13.5 10 12.8284 10 12C10 11.1716 9.32843 10.5 8.5 10.5C7.67157 10.5 7 11.1716 7 12C7 12.8284 7.67157 13.5 8.5 13.5ZM10 18.5C10 19.3284 9.32843 20 8.5 20C7.67157 20 7 19.3284 7 18.5C7 17.6716 7.67157 17 8.5 17C9.32843 17 10 17.6716 10 18.5ZM15.5 7C16.3284 7 17 6.32843 17 5.5C17 4.67157 16.3284 4 15.5 4C14.6716 4 14 4.67157 14 5.5C14 6.32843 14.6716 7 15.5 7ZM17 12C17 12.8284 16.3284 13.5 15.5 13.5C14.6716 13.5 14 12.8284 14 12C14 11.1716 14.6716 10.5 15.5 10.5C16.3284 10.5 17 11.1716 17 12ZM15.5 20C16.3284 20 17 19.3284 17 18.5C17 17.6716 16.3284 17 15.5 17C14.6716 17 14 17.6716 14 18.5C14 19.3284 14.6716 20 15.5 20Z"/></svg>`;
+  const panText = v => v === 0 ? 'C' : (v < 0 ? 'L' + (-v) : 'R' + v);
+  const saveSoon = () => { clearTimeout(saveTimer); saveTimer = setTimeout(saveLocal, 500); };
   function buildTracks() {
     const box = $('tracks');
     box.innerHTML = TRACKS.map(k => {
       const I = TRACK_INFO[k];
-      let sound = '';
-      if (k === 'lead') sound = `<label class="fld"><span>音色</span><select data-f="lead"></select></label>`;
-      if (k === 'chord') sound = `<label class="fld"><span>音色</span><select data-f="pad"></select></label>`;
-      if (k === 'bass') sound = `<label class="fld"><span>音色</span><select data-f="bassTone"></select></label>
-        <label class="fld"><span>弾き方</span><select data-f="bassStyle"></select></label>`;
-      if (k === 'drum') sound = `<label class="fld"><span>キット</span><select data-f="drums"></select></label>`;
       return `<div class="trk" data-track="${k}" style="--c:${I.color}">
         <button type="button" class="trk-name" data-act="select" title="${I.key} キーでも切り替え">
-          <i></i><b>${I.name}</b><kbd>${I.key}</kbd><small></small>
+          <b>${I.name}</b><kbd>${I.key}</kbd><small></small>
         </button>
-        <div class="trk-sound">${sound}
-          <button type="button" class="adv" data-act="adv" aria-expanded="false" title="音色の詳細とエフェクト">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-          </button>
+        <div class="trk-sound">
+          <button type="button" class="pick" data-pick="sound" title="音色を選ぶ"><b data-v="sound"></b></button>
+          <button type="button" class="pick" data-pick="style" title="パターン（弾き方）を選ぶ。選ぶとこのトラックを作り直す"><b data-v="style"></b></button>
+          <button type="button" class="adv" data-act="adv" aria-expanded="false" title="音作りとパン・リバーブ">${ICON_TONE}</button>
+          <button type="button" class="adv" data-act="fx" title="エフェクト">${ICON_FX}<em data-v="fxn"></em></button>
         </div>
         <div class="trk-mix">
-          <label class="knob"><span>音量</span><input type="range" min="0" max="100" data-m="vol"><output data-o="vol"></output></label>
-          <label class="knob"><span>左右</span><input type="range" min="-100" max="100" data-m="pan"><output data-o="pan"></output></label>
-          <label class="knob"><span>残響</span><input type="range" min="0" max="100" data-m="rev"><output data-o="rev"></output></label>
+          <label class="knob"><span>ボリューム</span><input type="range" min="0" max="100" data-m="vol"><output data-o="vol"></output></label>
         </div>
         <div class="trk-btns">
           <button type="button" class="ms" data-act="mute" title="ミュート">M</button>
           <button type="button" class="ms" data-act="solo" title="ソロ">S</button>
-          <button type="button" class="regen" data-act="regen" title="このトラックだけ新しく作り直す">作り直す</button>
+          <button type="button" class="regen" data-act="regen" title="このトラックだけ新しいタネで作り直す">再生成</button>
         </div>
         <div class="trk-adv" hidden>
           <div class="adv-col">
-            <h4>音色の傾向<small>まん中でその音色のまま</small></h4>
-            ${P.TONE_KNOBS.filter(t => t.tracks.includes(k)).map(t => `<label class="knob" title="${t.help}"><span>${t.label}</span><input type="range" min="0" max="100" data-tone="${t.id}"><output data-to="${t.id}"></output></label>`).join('')}
+            <h4>音作り<small>まん中でその音色のまま</small></h4>
+            ${P.TONE_KNOBS.filter(t => t.tracks.includes(k)).map(t => `<label class="knob" title="${t.help}"><span>${t.label}</span><input type="range" min="0" max="100" data-mid="50" data-tone="${t.id}"><output data-to="${t.id}"></output></label>`).join('')}
           </div>
           <div class="adv-col">
-            <h4>エフェクト</h4>
-            ${P.FX_KNOBS.map(f => `<label class="knob" title="${f.help}"><span>${f.label}</span><input type="range" min="0" max="100" data-fx="${f.id}"><output data-fo="${f.id}"></output></label>`).join('')}
-            <label class="knob" title="全トラックで共通の残響の長さ。量は上の行の「残響」で決める"><span>残響の長さ</span><input type="range" min="${P.REV_LEN.min * 10}" max="${P.REV_LEN.max * 10}" data-g="revLen"><output data-go="revLen"></output></label>
-            <p class="adv-note">残響の長さは全トラック共通。量は行の「残響」で。</p>
+            <h4>ミックス<small>ダブルクリックで初期値</small></h4>
+            <label class="knob"><span>パン</span><input type="range" min="-100" max="100" data-m="pan"><output data-o="pan"></output></label>
+            <label class="knob" title="全トラックで1台の共通リバーブへ送る量（センド）。リバーブの長さはエフェクトの画面で"><span>リバーブ（センド）</span><input type="range" min="0" max="100" data-mid="50" data-m="rev"><output data-o="rev"></output></label>
           </div>
-          <div class="adv-foot"><button type="button" class="regen" data-act="advReset">このトラックを元に戻す</button></div>
+          <div class="adv-foot"><button type="button" class="regen" data-act="advReset">音作りとミックスを元に戻す</button></div>
         </div>
       </div>`;
     }).join('');
     box.querySelectorAll('.trk').forEach(row => {
       const k = row.dataset.track;
-      row.addEventListener('pointerdown', e => { if (!e.target.closest('input,select,button.ms,button.regen')) setTrack(k); });
+      // ボタンは押した瞬間に表示が組み変わると押し損ねるので、クリックのあとで切り替える
+      row.addEventListener('pointerdown', e => { if (!e.target.closest('input,select,button:not(.trk-name)')) setTrack(k); });
       row.querySelectorAll('[data-m]').forEach(inp => {
-        inp.addEventListener('input', () => {
-          proj.mix[k][inp.dataset.m] = +inp.value;
-          applyMixOnly(); syncTracks(); clearTimeout(saveTimer); saveTimer = setTimeout(saveLocal, 500);
-        });
+        inp.addEventListener('input', () => { proj.mix[k][inp.dataset.m] = +inp.value; applyMixOnly(); syncTracks(); syncFx(); saveSoon(); });
         inp.addEventListener('dblclick', () => {
           proj.mix[k][inp.dataset.m] = inp.dataset.m === 'vol' ? 80 : inp.dataset.m === 'pan' ? 0 : 50;
-          applyMixOnly(); syncTracks();
+          applyMixOnly(); syncTracks(); syncFx();
         });
       });
       row.querySelector('[data-act="mute"]').addEventListener('click', () => { proj.mix[k].mute = !proj.mix[k].mute; applyMixOnly(); changed(); });
       row.querySelector('[data-act="solo"]').addEventListener('click', () => { proj.mix[k].solo = !proj.mix[k].solo; applyMixOnly(); changed(); });
       row.querySelector('[data-act="regen"]').addEventListener('click', () => regen(k));
+      row.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => { openPicker(k, b.dataset.pick); setTrack(k); }));
+      row.querySelector('[data-act="fx"]').addEventListener('click', () => { openFx(k); setTrack(k); });
       const adv = row.querySelector('.trk-adv'), advBtn = row.querySelector('[data-act="adv"]');
       advBtn.addEventListener('click', () => {
+        setTrack(k);
         adv.hidden = !adv.hidden;
         advBtn.setAttribute('aria-expanded', adv.hidden ? 'false' : 'true');
       });
-      const tweak = () => { applyMixOnly(); syncTracks(); clearTimeout(saveTimer); saveTimer = setTimeout(saveLocal, 500); auditionSoon(k); };
+      const tweak = () => { applyMixOnly(); syncTracks(); saveSoon(); auditionSoon(k); };
       row.querySelectorAll('[data-tone]').forEach(inp => {
         inp.addEventListener('input', () => { proj.mix[k].tone[inp.dataset.tone] = +inp.value; tweak(); });
         inp.addEventListener('dblclick', () => { proj.mix[k].tone[inp.dataset.tone] = 50; tweak(); });
       });
-      row.querySelectorAll('[data-fx]').forEach(inp => {
-        inp.addEventListener('input', () => { proj.mix[k].fx[inp.dataset.fx] = +inp.value; tweak(); });
-        inp.addEventListener('dblclick', () => { proj.mix[k].fx[inp.dataset.fx] = 0; tweak(); });
-      });
-      const rl = row.querySelector('[data-g="revLen"]');
-      rl.addEventListener('input', () => { proj.fx.revLen = +rl.value / 10; syncTracks(); });
-      // 残響はインパルスを作り直すので、離したときだけ
-      rl.addEventListener('change', () => { if (audio.ready) audio.rig.setReverb(P.revLen(proj)); tweak(); });
-      row.querySelector('[data-act="advReset"]').addEventListener('click', () => {
-        proj.mix[k].tone = P.defaultTone(); proj.mix[k].fx = P.defaultFx(); tweak();
-      });
-      row.querySelectorAll('select[data-f]').forEach(s => s.addEventListener('change', () => {
-        const f = s.dataset.f;
-        if (f === 'lead' || f === 'pad') { proj.st[f] = s.value; changed({ sound: true }); preview(k, k === 'lead' ? 76 : 64); }
-        else if (f === 'bassTone') { proj.mix.bass.sound = s.value; applyMixOnly(); changed(); preview('bass', 40); }
-        else if (f === 'bassStyle' || f === 'drums') {
-          // 弾き方・キットは演奏の型なので、選ぶとそのトラックを作り直す
-          pushUndo();
-          P.regenerateTrack(proj, k, { [f]: s.value, seed: proj.st.seed });
-          sel.clear(); changed({ rows: true });
-          setTrack(k);
-          setStatus(TRACK_INFO[k].name + 'を「' + s.selectedOptions[0].textContent + '」で作り直した（⌘Z で戻せる）');
-        }
-      }));
+      row.querySelector('[data-act="advReset"]').addEventListener('click', () => { proj.mix[k].tone = P.defaultTone(); proj.mix[k].pan = 0; proj.mix[k].rev = 50; tweak(); });
     });
   }
   function syncTracks() {
@@ -1617,31 +1756,215 @@ export function startEditor({ loadTone }) {
       row.dataset.silent = on[k] ? 'false' : 'true';
       row.querySelectorAll('[data-m]').forEach(inp => { if (document.activeElement !== inp) inp.value = m[inp.dataset.m]; });
       row.querySelector('[data-o="vol"]').textContent = m.vol;
-      row.querySelector('[data-o="pan"]').textContent = m.pan === 0 ? 'C' : (m.pan < 0 ? 'L' + (-m.pan) : 'R' + m.pan);
+      row.querySelector('[data-o="pan"]').textContent = panText(m.pan);
       row.querySelector('[data-o="rev"]').textContent = m.rev;
       row.querySelector('[data-act="mute"]').setAttribute('aria-pressed', m.mute ? 'true' : 'false');
       row.querySelector('[data-act="solo"]').setAttribute('aria-pressed', m.solo ? 'true' : 'false');
-      row.querySelector('.trk-name small').textContent = proj.notes[k].length + (k === 'drum' ? '打' : '音');
-      const tn = m.tone, fx = m.fx;
+      row.querySelector('.trk-name small').textContent = proj.notes[k].length + (k === 'drum' ? '打' : 'ノート');
+      row.querySelector('[data-v="sound"]').textContent = P.soundOf(proj, k).name;
+      const st = P.styleOf(proj, k), stT = S.STYLE_TABLE[k];
+      row.querySelector('[data-v="style"]').textContent = st && stT[st] ? stT[st].name : 'カスタム';
+      const tn = m.tone;
       row.querySelectorAll('[data-tone]').forEach(inp => { if (document.activeElement !== inp) inp.value = tn[inp.dataset.tone]; });
       row.querySelectorAll('[data-to]').forEach(o => { const v = tn[o.dataset.to]; o.textContent = v === 50 ? '−' : (v > 50 ? '+' : '') + (v - 50); });
-      row.querySelectorAll('[data-fx]').forEach(inp => { if (document.activeElement !== inp) inp.value = fx[inp.dataset.fx]; });
-      row.querySelectorAll('[data-fo]').forEach(o => { const v = fx[o.dataset.fo]; o.textContent = v ? v : 'なし'; });
-      const rl = row.querySelector('[data-g="revLen"]');
-      if (document.activeElement !== rl) rl.value = Math.round(P.revLen(proj) * 10);
-      row.querySelector('[data-go="revLen"]').textContent = P.revLen(proj).toFixed(1) + '秒';
-      // 50から動かしたつまみがあれば、詳細ボタンに印
-      const changedTone = Object.values(tn).some(v => v !== 50) || Object.values(fx).some(v => v !== 0);
-      row.querySelector('[data-act="adv"]').dataset.on = changedTone ? 'true' : 'false';
-      row.querySelectorAll('select[data-f]').forEach(s => {
-        const f = s.dataset.f;
-        const tbl = f === 'lead' ? E.LEADS : f === 'pad' ? E.PADS : f === 'bassTone' ? P.BASS_TONES : f === 'bassStyle' ? E.BASSES : E.KITS;
-        const v = f === 'bassTone' ? proj.mix.bass.sound : proj.st[f];
-        if (!s.options.length) s.innerHTML = opts(tbl, v);
-        s.value = v;
-      });
+      // 動かしたつまみ・入れたエフェクトがあれば、ボタンをトラックの色に
+      row.querySelector('[data-act="adv"]').dataset.on = Object.values(tn).some(v => v !== 50) || m.pan !== 0 || m.rev !== 50 ? 'true' : 'false';
+      const n = m.rack.filter(u => u.on).length;
+      row.querySelector('[data-act="fx"]').dataset.on = n ? 'true' : 'false';
+      row.querySelector('[data-v="fxn"]').textContent = m.rack.length ? m.rack.length : '';
     });
+    paintRanges();
   }
+  /* スライダーの溝の色を塗る範囲。0 から（パンや data-mid があればまん中から）今の値まで */
+  function paintRanges(root) {
+    (root || document).querySelectorAll('input[type="range"]').forEach(paintRange);
+  }
+  function paintRange(el) {
+    const lo = +el.min || 0, hi = el.max === '' ? 100 : +el.max, pc = v => (v - lo) / ((hi - lo) || 1) * 100;
+    const p = pc(+el.value), mid = el.dataset.mid !== undefined ? pc(+el.dataset.mid) : lo < 0 ? pc(0) : 0;
+    el.style.setProperty('--a', Math.min(p, mid) + '%');
+    el.style.setProperty('--b', Math.max(p, mid) + '%');
+  }
+  document.addEventListener('input', e => { if (e.target.type === 'range') paintRange(e.target); }, true);
+
+  /* ---------------- 音色・パターンの選択パネル ---------------- */
+  const pick = { k: null, mode: null };
+  const pickDlg = $('pickDlg');
+  function openPicker(k, mode) {
+    pick.k = k; pick.mode = mode;
+    const tbl = mode === 'sound' ? S.SOUND_TABLE[k] : S.STYLE_TABLE[k];
+    const cats = mode === 'sound' ? S.SOUND_CATS[k] : S.STYLE_CATS[k];
+    $('pickTitle').textContent = (mode === 'sound' ? '音色' : 'パターン') + '：' + TRACK_INFO[k].name;
+    $('pickNote').textContent = mode === 'sound'
+      ? '押すとすぐ切り替わって、止まっているときは試しに鳴る。閉じるまで何回でも試せる'
+      : (k === 'chord' ? '押すとコードをそのリズムで並べ直す（⌘Z で戻せる）'
+        : '押すと、同じタネのままこのパターンで作り直す（⌘Z で戻せる）');
+    pickDlg.style.setProperty('--c', TRACK_INFO[k].color);
+    $('pickBody').innerHTML = cats.map(c => {
+      const items = Object.entries(tbl).filter(([, v]) => (v.cat || 'all') === c.id);
+      if (!items.length) return '';
+      return `<section><h3>${c.name}</h3><div class="picks">${items.map(([key, v]) =>
+        `<button type="button" class="ptile" data-key="${key}"><b>${v.name}</b>${v.desc ? `<span>${v.desc}</span>` : ''}</button>`).join('')}</div></section>`;
+    }).join('');
+    $('pickBody').querySelectorAll('.ptile').forEach(b => b.addEventListener('click', () => choose(b.dataset.key)));
+    syncPicker();
+    pickDlg.showModal();
+  }
+  function syncPicker() {
+    if (!pickDlg.open && !pick.k) return;
+    const curKey = pick.mode === 'sound' ? proj.mix[pick.k].sound : P.styleOf(proj, pick.k);
+    $('pickBody').querySelectorAll('.ptile').forEach(b => b.setAttribute('aria-pressed', b.dataset.key === curKey ? 'true' : 'false'));
+  }
+  function choose(key) {
+    const k = pick.k;
+    if (pick.mode === 'sound') {
+      P.setSound(proj, k, key);
+      changed({ sound: true });
+      demo(k);
+      setStatus(TRACK_INFO[k].name + 'の音色を「' + S.SOUND_TABLE[k][key].name + '」にした');
+    } else {
+      pushUndo();
+      P.setStyle(proj, k, key);
+      sel.clear(); changed({ rows: true });
+      setTrack(k);
+      setStatus(TRACK_INFO[k].name + 'を「' + S.STYLE_TABLE[k][key].name + '」で作り直した（⌘Z で戻せる）');
+    }
+    syncPicker();
+  }
+  $('pickClose').addEventListener('click', () => pickDlg.close());
+  pickDlg.addEventListener('click', e => { if (e.target === pickDlg) pickDlg.close(); });
+  /* 音色の試し弾き：いまの曲の最初の和音で、トラックらしく短く */
+  async function demo(k) {
+    if (audio.playing) return;
+    if (!(await ensureAudio())) return;
+    const Tn = E.getTone(), now = Tn.now() + .03, r = audio.rig;
+    const ch = proj.chords[0], root = ch[0] + proj.st.key;
+    const vc = E.voicing(root, ch[1], 60, 76);
+    try {
+      if (k === 'lead') vc.concat([vc[0] + 12]).forEach((n, i) => r.lead.triggerAttackRelease(E.midiName(n + 12), '8n', now + i * .16, .7));
+      else if (k === 'chord') r.chords.triggerAttackRelease(vc.map(n => E.midiName(n - 5)), '2n', now, .55);
+      else if (k === 'bass') {
+        const b = 36 + ((root % 12) + 12) % 12;
+        [b, b, b + 12, b + 7].forEach((n, i) => r.bass.triggerAttackRelease(E.midiName(n), '16n', now + i * .2, .75));
+      } else {
+        [['kick', 0], ['hat', .15], ['snare', .3], ['hat', .45], ['kick', .6], ['clap', .9]].forEach(([d, t]) => setTimeout(() => previewDrum({ k: d, v: .75 }), t * 1000));
+      }
+    } catch (e) { }
+  }
+
+  /* ---------------- エフェクト（トラックごとのラック） ---------------- */
+  const fxDlg = $('fxDlg');
+  let fxK = null;
+  function openFx(k) {
+    fxK = k;
+    fxDlg.style.setProperty('--c', TRACK_INFO[k].color);
+    $('fxTitle').textContent = 'エフェクト：' + TRACK_INFO[k].name;
+    $('fxAdd').innerHTML = F.FX_CATS.map(c => `<div class="fx-cat"><span>${c.name}</span>${Object.entries(F.FX_TYPES).filter(([, t]) => t.cat === c.id)
+      .map(([id, t]) => `<button type="button" data-add="${id}" title="${t.desc}">${t.name}</button>`).join('')}</div>`).join('');
+    $('fxAdd').querySelectorAll('[data-add]').forEach(b => b.addEventListener('click', () => {
+      const r = proj.mix[fxK].rack;
+      if (r.length >= F.MAX_RACK) return;
+      r.push(F.newUnit(b.dataset.add));
+      rackChanged(true);
+    }));
+    renderRack();
+    fxDlg.showModal();
+  }
+  function rackChanged(structure) {
+    applyMixOnly(); syncTracks(); saveSoon();
+    if (structure) renderRack(); else syncFx();
+    auditionSoon(fxK);
+  }
+  function knobHtml(d, v, i) {
+    if (d.type === 'select' || d.type === 'div')
+      return `<label class="knob"><span>${d.label}</span><select data-u="${i}" data-p="${d.id}">${d.opts.map(o => {
+        const val = d.type === 'select' ? o[0] : o[1], lab = d.type === 'select' ? o[1] : o[0];
+        return `<option value="${val}"${val === v ? ' selected' : ''}>${lab}</option>`;
+      }).join('')}</select><output></output></label>`;
+    return `<label class="knob"><span>${d.label}</span><input type="range" min="${d.min}" max="${d.max}" step="${d.step || 1}" data-u="${i}" data-p="${d.id}"><output data-uo="${i}:${d.id}"></output></label>`;
+  }
+  function renderRack() {
+    const rack = proj.mix[fxK].rack;
+    $('fxRack').innerHTML = rack.length ? rack.map((u, i) => {
+      const T = F.FX_TYPES[u.type];
+      return `<div class="unit" data-on="${u.on}" data-i="${i}">
+        <div class="unit-head" title="ドラッグで順番を入れ替え">
+          <span class="grip" aria-hidden="true">${ICON_DRAG}</span>
+          <button type="button" class="pow" data-pow="${i}" aria-pressed="${u.on}" title="オン・オフ（バイパス）"></button>
+          <b>${T.name}</b><small>${T.desc}</small>
+          <span class="unit-ops">
+            <button type="button" data-rm="${i}" title="外す" aria-label="外す">${ICON_CLOSE}</button>
+          </span>
+        </div>
+        <div class="unit-body">${T.params.map(d => knobHtml(d, u.p[d.id], i)).join('')}</div>
+      </div>`;
+    }).join('') : '<p class="fx-empty">まだ何も入っていない。下から足してね</p>';
+    $('fxAdd').querySelectorAll('[data-add]').forEach(b => { b.disabled = rack.length >= F.MAX_RACK; });
+    $('fxRack').querySelectorAll('[data-pow]').forEach(b => b.addEventListener('click', () => { const u = rack[+b.dataset.pow]; u.on = !u.on; rackChanged(true); }));
+    $('fxRack').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => { rack.splice(+b.dataset.rm, 1); rackChanged(true); }));
+    $('fxRack').querySelectorAll('.unit-head').forEach(h => h.addEventListener('pointerdown', e => dragUnit(e, h.parentElement)));
+    $('fxRack').querySelectorAll('[data-p]').forEach(el => {
+      const u = rack[+el.dataset.u], d = F.FX_TYPES[u.type].params.find(x => x.id === el.dataset.p);
+      const val = () => d.type === 'select' ? el.value : d.type === 'div' ? (isNaN(+el.value) ? el.value : +el.value) : +el.value;
+      el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { u.p[d.id] = val(); rackChanged(false); });
+      if (el.tagName !== 'SELECT') el.addEventListener('dblclick', () => { u.p[d.id] = d.def; rackChanged(false); });
+    });
+    syncFx();
+  }
+  /* ラックの並べ替え：見出しをつかんで上下へ。ほかのユニットの中ほどを越えたら場所を入れ替える */
+  function dragUnit(e, el) {
+    if (e.button !== 0 || e.target.closest('button')) return;
+    e.preventDefault();
+    const box = $('fxRack'), y0 = e.clientY;
+    el.classList.add('dragging');
+    el.setPointerCapture(e.pointerId);
+    const move = ev => {
+      el.style.transform = 'translateY(' + (ev.clientY - y0 - (el.offsetTop - top0)) + 'px)';
+      for (const o of box.querySelectorAll('.unit:not(.dragging)')) {
+        const r = o.getBoundingClientRect(), mid = r.top + r.height / 2;
+        const before = o.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING;
+        if (before && ev.clientY > mid && ev.clientY < r.bottom) { o.after(el); break; }
+        if (!before && ev.clientY < mid && ev.clientY > r.top) { o.before(el); break; }
+      }
+      el.style.transform = 'translateY(' + (ev.clientY - y0 - (el.offsetTop - top0)) + 'px)';
+    };
+    const top0 = el.offsetTop;
+    const up = () => {
+      el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up);
+      el.classList.remove('dragging'); el.style.transform = '';
+      const order = [...box.querySelectorAll('.unit')].map(u => +u.dataset.i);
+      if (order.some((v, i) => v !== i)) {
+        const rack = proj.mix[fxK].rack, old = rack.slice();
+        order.forEach((v, i) => { rack[i] = old[v]; });
+        rackChanged(true);
+      }
+    };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  }
+  function syncFx() {
+    if (!fxDlg.open || !fxK) return;
+    const rack = proj.mix[fxK].rack;
+    $('fxRack').querySelectorAll('input[data-p]').forEach(el => {
+      const u = rack[+el.dataset.u], d = F.FX_TYPES[u.type].params.find(x => x.id === el.dataset.p);
+      if (document.activeElement !== el) el.value = u.p[d.id];
+      el.nextElementSibling.textContent = F.fmtParam(d, u.p[d.id]);
+    });
+    const m = proj.mix[fxK];
+    if (document.activeElement !== $('fxSend')) $('fxSend').value = m.rev;
+    $('fxSendOut').textContent = m.rev;
+    if (document.activeElement !== $('fxDecay')) $('fxDecay').value = Math.round(P.revLen(proj) * 10);
+    $('fxDecayOut').textContent = P.revLen(proj).toFixed(1) + '秒';
+    paintRanges(fxDlg);
+  }
+  $('fxSend').addEventListener('input', () => { proj.mix[fxK].rev = +$('fxSend').value; applyMixOnly(); syncTracks(); syncFx(); saveSoon(); });
+  $('fxDecay').addEventListener('input', () => { proj.fx.revLen = +$('fxDecay').value / 10; syncFx(); });
+  // リバーブはインパルスを作り直すので、離したときだけ
+  $('fxDecay').addEventListener('change', () => {
+    if (audio.ready) { audio.revLen = P.revLen(proj); audio.rig.setReverb(audio.revLen); }
+    saveSoon(); auditionSoon(fxK);
+  });
+  $('fxClose').addEventListener('click', () => fxDlg.close());
+  fxDlg.addEventListener('click', e => { if (e.target === fxDlg) fxDlg.close(); });
   function setTrack(k) {
     if (cur === k) return;
     const wasDrum = isDrum();
@@ -1652,10 +1975,10 @@ export function startEditor({ loadTone }) {
     } else if (wasDrum) { scrollY = 0; centerOn(k); }
     else centerOn(k, true);
     clampScroll();
-    $('regenLabel').textContent = TRACK_INFO[k].name + '再生成';
     $('grid').value = String(grids[k]);
     $('gridLabel').textContent = k === 'drum' ? 'ステップ' : 'グリッド';
     document.body.dataset.track = k;
+    if (tool !== 'edit') setStatus(toolHint());
     syncTracks(); syncSel(); syncPage(); syncStrip(); draw();
   }
   function regen(k) {
@@ -1687,11 +2010,15 @@ export function startEditor({ loadTone }) {
   function syncStrip() {
     $('bpm').value = proj.st.bpm;
     $('key').value = proj.st.key;
-    $('swing').value = proj.st.swing; $('swingOut').textContent = proj.st.swing || 'なし';
+    $('swing').value = proj.st.swing; $('swingOut').textContent = proj.st.swing ? proj.st.swing + '%' : 'オフ';
     $('tone').value = proj.st.tone; $('toneOut').textContent = proj.st.tone;
     $('bars').value = proj.bars;
     $('genreName').textContent = E.PRESETS[proj.st.preset].label;
     $('lenInfo').textContent = P.loopSeconds(proj).toFixed(1) + '秒';
+    $('hudBpm').textContent = proj.st.bpm;
+    $('hudKey').textContent = KEY_NAMES[proj.st.key].split('/')[0];
+    $('hudLen').textContent = proj.bars;
+    paintRanges($('songDlg'));
     $('btnUndo').disabled = !undoStack.length;
     $('btnRedo').disabled = !redoStack.length;
     $('btnCompact').setAttribute('aria-pressed', compact ? 'true' : 'false');
@@ -1703,7 +2030,8 @@ export function startEditor({ loadTone }) {
     if (n) {
       const v = [...sel].reduce((a, x) => a + x.v, 0) / n;
       if (document.activeElement !== $('selVel')) $('selVel').value = Math.round(v * 100);
-      $('selVelOut').textContent = Math.round(v * 100);
+      $('selVelOut').textContent = Math.round(v * 127);
+      paintRange($('selVel'));
     }
   }
   function syncPlay() {
@@ -1714,6 +2042,7 @@ export function startEditor({ loadTone }) {
 
   $('playBig').addEventListener('click', togglePlay);
   $('toStart').addEventListener('click', stop);
+  $('backBars').addEventListener('click', backBars);
   $('btnFollow').addEventListener('click', () => setFollow(!follow));
   $('btnCompact').addEventListener('click', () => {
     compact = !compact; setPref('compact', compact);
@@ -1729,6 +2058,43 @@ export function startEditor({ loadTone }) {
     edit(() => { proj.st.bpm = v; });
     if (audio.ready) E.TR().bpm.value = v;
   });
+  /* 左上の BPM をつかんで上下にドラッグでテンポを変える（4px で 1。⇧ で細かく）。ホイールでも */
+  function setBpmLive(v) {
+    v = clamp(Math.round(v), 52, 176);
+    if (v === proj.st.bpm) return false;
+    proj.st.bpm = v;
+    if (audio.ready) E.TR().bpm.value = v;
+    applyMixOnly();     // ディレイの長さや揺れの速さはテンポで決まる
+    $('hudBpm').textContent = v;
+    return true;
+  }
+  const hudBpm = document.querySelector('.hud-bpm');
+  hudBpm.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    hudBpm.setPointerCapture(e.pointerId);
+    const y0 = e.clientY, b0 = proj.st.bpm, before = snap();
+    let moved = false;
+    hudBpm.dataset.drag = 'true';
+    const move = ev => {
+      const step = ev.shiftKey ? 12 : 4;
+      if (setBpmLive(b0 + (y0 - ev.clientY) / step)) moved = true;
+    };
+    const up = () => {
+      hudBpm.removeEventListener('pointermove', move); hudBpm.removeEventListener('pointerup', up); hudBpm.removeEventListener('pointercancel', up);
+      delete hudBpm.dataset.drag;
+      if (moved && proj.st.bpm !== b0) { pushUndo(before); changed(); setStatus('テンポを ' + proj.st.bpm + ' にした（⌘Z で戻せる）'); }
+    };
+    hudBpm.addEventListener('pointermove', move); hudBpm.addEventListener('pointerup', up); hudBpm.addEventListener('pointercancel', up);
+  });
+  let wheelUndo = 0;
+  hudBpm.addEventListener('wheel', e => {
+    e.preventDefault();
+    // 続けて回している間は、取り消しを1回ぶんにまとめる
+    if (!wheelUndo) pushUndo();
+    clearTimeout(wheelUndo); wheelUndo = setTimeout(() => { wheelUndo = 0; changed(); }, 400);
+    setBpmLive(proj.st.bpm + (e.deltaY < 0 ? 1 : -1));
+  }, { passive: false });
   $('key').addEventListener('change', e => {
     edit(() => P.setKey(proj, +e.target.value));
     if (!isDrum()) centerOn(cur, true);
@@ -1749,6 +2115,15 @@ export function startEditor({ loadTone }) {
     zoomX = clamp((viewW() - gutter() - 8) / end(), 3, 96); scrollX = 0;
     fitView(); clampScroll(); draw();
   });
+  /* 縦の幅（鍵盤1つの高さ）。画面のまん中の音を動かさずに変える */
+  function setRowH(h) {
+    const vh = areaBottom() - RULER, n = (scrollY + vh / 2) / rowH;
+    rowH = clamp(h, 3, 22);
+    scrollY = n * rowH - vh / 2;
+    clampScroll(); draw();
+  }
+  $('rowZoom').addEventListener('input', e => setRowH(+e.target.value));
+  $('rowZoom').addEventListener('dblclick', () => { fitView(); clampScroll(); draw(); });
   function zoomBy(f) {
     const mid = T(gutter() + (viewW() - gutter()) / 2);
     zoomX = clamp(zoomX * f, 3, 96);
@@ -1761,7 +2136,7 @@ export function startEditor({ loadTone }) {
     if (!sel.size) return;
     if (!$('selVel').dataset.pushed) { pushUndo(); $('selVel').dataset.pushed = '1'; }
     for (const x of sel) x.v = +e.target.value / 100;
-    $('selVelOut').textContent = e.target.value;
+    $('selVelOut').textContent = Math.round(e.target.value * 1.27);
     changed();
   });
   $('selVel').addEventListener('change', () => { delete $('selVel').dataset.pushed; });
@@ -1771,7 +2146,41 @@ export function startEditor({ loadTone }) {
   $('selQuant').addEventListener('click', quantizeSel);
   $('selOctUp').addEventListener('click', () => shiftOct(1));
   $('selOctDown').addEventListener('click', () => shiftOct(-1));
-  $('btnRegen').addEventListener('click', () => regen(cur));
+  /* 操作のしかた・設定 */
+  const modal = (btn, dlg, onOpen) => {
+    $(btn).addEventListener('click', () => { if (onOpen) onOpen(); $(dlg).showModal(); });
+    $(dlg).querySelector('.x').addEventListener('click', () => $(dlg).close());
+    $(dlg).addEventListener('click', e => { if (e.target === $(dlg)) $(dlg).close(); });
+  };
+  modal('btnHelp', 'helpDlg');
+  modal('btnConfig', 'configDlg', syncConfig);
+  function syncConfig() {
+    const v = { ...cfg, follow, compact };
+    document.querySelectorAll('[data-cfg]').forEach(el => { el.checked = !!v[el.dataset.cfg]; });
+  }
+  function applyConfig() {
+    document.body.dataset.font = cfg.dotFont ? 'dot' : 'sans';
+    $('hudChord').hidden = !cfg.hudChord;
+  }
+  document.querySelectorAll('[data-cfg]').forEach(el => el.addEventListener('change', () => {
+    const k = el.dataset.cfg, on = el.checked;
+    if (k === 'follow') setFollow(on);
+    else if (k === 'compact') { compact = on; setPref('compact', on); computeRows(); clampScroll(); syncStrip(); draw(); }
+    else {
+      cfg[k] = on; setPref('cfg', cfg);
+      if (k === 'autosave') { if (on) saveLocal(); else { try { localStorage.removeItem(STORE); } catch (e) { } } }
+      applyConfig(); draw();
+    }
+  }));
+  applyConfig();
+  // フォントが届いたら、canvas の文字も描き直す
+  if (document.fonts) document.fonts.ready.then(() => draw());
+
+  /* 曲の設定（テンポ・キー…）。ふだんはしまっておく */
+  const songDlg = $('songDlg');
+  $('btnSong').addEventListener('click', () => { syncStrip(); songDlg.showModal(); });
+  $('songClose').addEventListener('click', () => songDlg.close());
+  songDlg.addEventListener('click', e => { if (e.target === songDlg) songDlg.close(); });
   document.querySelectorAll('[data-tool]').forEach(b => b.addEventListener('click', () => setTool(b.dataset.tool)));
   $('brushSize').value = brushR;
   $('brushSize').addEventListener('input', e => setBrushR(+e.target.value));
@@ -1897,7 +2306,7 @@ export function startEditor({ loadTone }) {
       setStatus('合成中…（' + loopSec.toFixed(0) + '秒ぶん）');
       await new Promise(r => setTimeout(r, 30));
       const { buf, dry, liveRate } = await P.renderOffline(proj, loopSec, tail, async () => {
-        setStatus('残響ありで合成できなかったから、残響なしでやり直してる…');
+        setStatus('リバーブありで合成できなかったから、リバーブなしでやり直してる…');
         await new Promise(r => setTimeout(r, 30));
       });
       stage = '後処理';
@@ -1908,7 +2317,7 @@ export function startEditor({ loadTone }) {
       download(name + (kind === 'ima4' ? '-ima4' : '') + '.' + ext, bytes, kind === 'wav' ? 'audio/wav' : 'audio/x-caf');
       const mb = (bytes.length / 1048576).toFixed(1);
       setStatus('書き出した（' + mb + 'MB・' + (n / sr).toFixed(2) + '秒・ピーク ' + (20 * Math.log10(Math.max(peak, 1e-9))).toFixed(1) + ' dBFS'
-        + (dry ? '・残響なし' : '') + '）。継ぎ目なくループする');
+        + (dry ? '・リバーブなし' : '') + '）。継ぎ目なくループする');
     } catch (err) {
       setStatus(stage + 'でつまずいた：' + ((err && (err.code || err.message)) || '不明') + '。もう一度押してみて', true);
     } finally { exporting = false; }

@@ -1348,13 +1348,15 @@ export function buildMidi(song,st){
     tracks.push(t);
   };
   const E=song.events, keep=g=>!st.mute[g];
+  // st.gm (editor): program numbers for sounds that are not in the recipe tables
+  const gm=(part,def)=>(st.gm&&st.gm[part]!==undefined)?st.gm[part]:def;
   const layer=l=>keep('lead')?E.filter(e=>e.kind==='lead'&&e.layer===l):[];
-  addTrack('Melody',0,LEADS[st.lead].gm,layer('main'),false,'lead');
-  addTrack('Layers',1,LEADS[st.lead].gm,
+  addTrack('Melody',0,gm('lead',LEADS[st.lead].gm),layer('main'),false,'lead');
+  addTrack('Layers',1,gm('lead',LEADS[st.lead].gm),
     keep('lead')?E.filter(e=>e.kind==='lead'&&(e.layer==='oct'||e.layer==='harm')):[],false,'lead');
-  addTrack('Counter',2,LEADS[st.lead].gm,layer('counter'),false,'lead');
-  addTrack('Chords',3,PADS[st.pad].gm,keep('chord')?E.filter(e=>e.kind==='chord'):[],false,'chord');
-  addTrack('Bass',4,BASSES[st.bassStyle].gm,keep('bass')?E.filter(e=>e.kind==='bass'):[],false,'bass');
+  addTrack('Counter',2,gm('lead',LEADS[st.lead].gm),layer('counter'),false,'lead');
+  addTrack('Chords',3,gm('chord',PADS[st.pad].gm),keep('chord')?E.filter(e=>e.kind==='chord'):[],false,'chord');
+  addTrack('Bass',4,gm('bass',BASSES[st.bassStyle].gm),keep('bass')?E.filter(e=>e.kind==='bass'):[],false,'bass');
   addTrack('Drums',9,null,
     keep('drum')?E.filter(e=>GROUP[e.kind]==='drum'&&(e.gm||DRUM_NOTE[e.kind])!==undefined):[],true,'drum');
 
@@ -1416,16 +1418,15 @@ export function createRig(opts){
     else g.connect(master);
   }
   // opts.pan (editor) also gets an insert chain per part, in front of the fader:
-  // in → lowpass → high shelf → distortion → compressor → makeup → bus.
+  // in → lowpass → high shelf → (effect rack, rebuilt by the editor) → out → bus.
   // Every stage starts transparent; without opts.pan the parts go straight into the bus.
   const inp={}, fx={};
   for(const k of Object.keys(bus)){
     if(!o.pan){ inp[k]=bus[k]; continue; }
     const f={in:new Tone.Gain(1),lp:new Tone.Filter({type:'lowpass',frequency:20000,Q:.5}),
-      shelf:new Tone.Filter({type:'highshelf',frequency:3200,gain:0}),
-      dist:new Tone.Distortion({distortion:0,wet:0,oversample:'2x'}),
-      comp:new Tone.Compressor({threshold:-.1,ratio:1,attack:.008,release:.16}),makeup:new Tone.Gain(1)};
-    f.in.chain(f.lp,f.shelf,f.dist,f.comp,f.makeup,bus[k]);
+      shelf:new Tone.Filter({type:'highshelf',frequency:3200,gain:0}),out:new Tone.Gain(1)};
+    f.in.chain(f.lp,f.shelf,f.out,bus[k]);
+    f.rackFrom=f.shelf; f.rackTo=f.out; f.sig=''; f.units=[];
     inp[k]=f.in; fx[k]=f;
   }
   const drumWet=new Tone.Gain(1); if(verb) drumWet.connect(verb);
@@ -1525,7 +1526,8 @@ export function createRig(opts){
 
   const rig={master,colour,lead,chords,bass,kick,shaker,rim,clap,hat,
     snare,snBody,ohat,crash,tom,perc,boom,ride,tamb,cbA,cbB,block,hasVerb:!!verb,
-    bus,pans,fx,verb,sends:{lead:leadSend,chord:chordSend,bass:bassSend},drumWet};
+    bus,pans,fx,verb,sends:{lead:leadSend,chord:chordSend,bass:bassSend},drumWet,chFilt,
+    filt:{shHP,rimBP,clapBP,hatHP,snHP,ohHP,crHP,rideBP,tambHP,cbBP}};
   // reverb length in seconds (editor). Rebuilding the impulse is cheap enough to do on release of a slider
   rig.setReverb=function(sec){ if(verb){ try{ verb.buffer=makeIR(sec,2.6); }catch(e){} } };
   rig.setLevels=function(st,ramp){

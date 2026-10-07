@@ -9,10 +9,13 @@
     recipe: 作ったときのレシピコード（由来の記録。読み込みには使わない）
     st:     エンジンの状態（テンポ・キー・音色・タネ…）。作り直しやMIDIの音色番号に使う
     bars, beats, chords: 小節数・拍子・小節ごとの和音（[根音, 種類]、キーからの相対）
-    mix:    { lead|chord|bass|drum: {vol, pan, rev, mute, solo, sound?, tone, fx} }
-              tone = {bright, attack, length, color}（0〜100、50でその音色のまま）
-              fx   = {drive, comp}（0〜100、0でかからない）
-    fx:     { revLen }  残響の長さ（秒、全トラック共通）
+    mix:    { lead|chord|bass|drum: {vol, pan, rev, mute, solo, sound, tone, rack} }
+              rev   = 共通リバーブへのセンド量（0〜100、50が曲調の標準）
+              sound = 音色（sounds.js の表のキー）
+              tone  = {bright, attack, length, color}（音作り。0〜100、50でその音色のまま）
+              rack  = [{type, on, p}]（エフェクト。上から順に通る。fx.js）
+    fx:     { revLen }  共通リバーブのディケイ（秒）
+    st.leadStyle / st.chordStyle … エディタで選んだパターン（レシピコードには入らない）
     notes:  {
       lead:  [{t, d, n, v, l}]   t=位置・d=長さ（8分音符単位）n=MIDIノート v=強さ0〜1 l=main/oct/harm/counter
       chord: [{t, d, n, v}]      和音は1音ずつばらして持つ
@@ -22,6 +25,8 @@
   }
 */
 import * as E from "../engine.js";
+import * as S from "./sounds.js";
+import * as F from "./fx.js";
 
 export const FORMAT = 'loop-bgm-project';
 export const VERSION = 1;
@@ -29,42 +34,21 @@ export const TRACKS = ['lead', 'chord', 'bass', 'drum'];
 export const PITCHED = ['lead', 'chord', 'bass'];
 export const TRACK_INFO = {
   lead:  { name: 'メロディ', color: '#EC4A3E', key: '1' },
-  chord: { name: '伴奏',     color: '#7A6CD0', key: '2' },
+  chord: { name: 'コード',   color: '#7A6CD0', key: '2' },
   bass:  { name: 'ベース',   color: '#3CB98F', key: '3' },
   drum:  { name: 'ドラム',   color: '#B9B39C', key: '4' },
 };
 
-/* ベースの音源は1つ（MonoSynth）なので、エディタでは波形だけ選べるようにする */
-export const BASS_TONES = {
-  tri:    { name: 'まるい',   cfg: { oscillator: { type: 'triangle' } } },
-  sine:   { name: 'やわらか', cfg: { oscillator: { type: 'sine' } } },
-  saw:    { name: 'ぶりぶり', cfg: { oscillator: { type: 'sawtooth' } } },
-  square: { name: 'ぴこぴこ', cfg: { oscillator: { type: 'square' } } },
-  fat:    { name: '太い',     cfg: { oscillator: { type: 'fatsawtooth', count: 3, spread: 18 } } },
-  pwm:    { name: 'うねり',   cfg: { oscillator: { type: 'pwm', modulationFrequency: .35 } } },
-  fm:     { name: 'FMベース', cfg: { oscillator: { type: 'fmsine', harmonicity: 1, modulationIndex: 3 } } },
-  sub:    { name: 'サブ',     cfg: { oscillator: { type: 'sine' } } },
-};
-/* rig.bass の作りと同じ値（engine.js の createRig）。音色の傾向はここからの倍率でかける */
-const BASS_BASE = {
-  envelope: { attack: .012, decay: .3, sustain: .45, release: .35 },
-  filterEnvelope: { attack: .01, decay: .2, sustain: .35, release: .3, baseFrequency: 110, octaves: 2.4 },
-  filter: { Q: 1.2 },
-};
-/* 詳細設定のつまみ。どのトラックに出すか */
+/* 音作りのつまみ。どのトラックに出すか */
 export const TONE_KNOBS = [
-  { id: 'bright', label: '明るさ', tracks: ['lead', 'chord', 'bass', 'drum'], help: '左で暗く、右で高い音を持ち上げてきらびやかに' },
-  { id: 'attack', label: 'アタック', tracks: ['lead', 'chord', 'bass'], help: '右ほど音の立ち上がりがゆっくり' },
-  { id: 'length', label: '余韻', tracks: ['lead', 'chord', 'bass'], help: '音が消えるまでの長さ' },
-  { id: 'color', label: '倍音', tracks: ['lead'], help: '右ほど金属っぽく、左ほど丸い（FMの深さ）' },
-  { id: 'color', label: 'うなり', tracks: ['bass'], help: '右ほどフィルターがよく動いて、うなる' },
-];
-export const FX_KNOBS = [
-  { id: 'drive', label: '歪み', help: '0でかからない。右ほど荒く歪む' },
-  { id: 'comp', label: 'コンプ', help: '0でかからない。右ほど音量の差がなくなって、前に出る' },
+  { id: 'bright', label: 'ブライトネス', tracks: ['lead', 'chord', 'bass', 'drum'], help: '左でこもらせ（ローパス）、右で高域を持ち上げる（ハイシェルフ）' },
+  { id: 'attack', label: 'アタック', tracks: ['lead', 'chord', 'bass'], help: '音の立ち上がり。右ほどゆっくり' },
+  { id: 'length', label: 'ディケイ／リリース', tracks: ['lead', 'chord', 'bass'], help: '音が減っていく速さと、離してから消えるまでの長さ' },
+  { id: 'color', label: 'FM量', tracks: ['lead'], help: 'FMの深さ。右ほど金属っぽく、左ほど丸い' },
+  { id: 'color', label: 'フィルターEnv', tracks: ['bass'], help: 'フィルターエンベロープの深さとレゾナンス。右ほど「ビョン」と動く' },
 ];
 export const defaultTone = () => ({ bright: 50, attack: 50, length: 50, color: 50 });
-export const defaultFx = () => ({ drive: 0, comp: 0 });
+/* 共通リバーブのディケイ（秒） */
 export const REV_LEN = { min: .6, max: 6, def: 2.2 };
 
 /* ドラム画面の行。上から下へ。g はタム・コンガの音程（GM番号） */
@@ -123,8 +107,8 @@ export function eventsFromNotes(notes) {
 
 const defaultMix = st => {
   const m = {};
-  for (const k of TRACKS) m[k] = { vol: st.partVol[k], pan: 0, rev: 50, mute: !!st.mute[k], solo: false, tone: defaultTone(), fx: defaultFx() };
-  m.bass.sound = 'tri';
+  for (const k of TRACKS) m[k] = { vol: st.partVol[k], pan: 0, rev: 50, mute: !!st.mute[k], solo: false, tone: defaultTone(), rack: [] };
+  m.lead.sound = st.lead; m.chord.sound = st.pad; m.bass.sound = S.DEFAULT_SOUND.bass; m.drum.sound = S.DEFAULT_SOUND.drum;
   return m;
 };
 
@@ -138,10 +122,49 @@ export function fromState(st, mix) {
     format: FORMAT, version: VERSION,
     recipe: E.encodeRecipe(st),
     st: s, bars: song.bars, beats: song.beats, chords: song.chords,
-    mix: mix ? clone(mix) : defaultMix(st),
+    mix: mix ? carryMix(mix, st) : defaultMix(st),
     fx: { revLen: REV_LEN.def },
     notes: notesFromEvents(song.events),
   };
+}
+
+/* 曲調を変えてもミキサーは引き継ぐ。メロディとコードの音色だけは新しい曲調のものにする */
+function carryMix(mix, st) {
+  const m = clone(mix);
+  m.lead.sound = st.lead; m.chord.sound = st.pad;
+  return m;
+}
+
+/* 音色を変える。レシピにある音色ならエンジンの状態にも入れる（作り直しの性格やMIDIの番号に使う） */
+export function setSound(proj, k, key) {
+  const s = S.SOUND_TABLE[k][key];
+  if (!s) return;
+  proj.mix[k].sound = key;
+  if (k === 'lead') proj.st.lead = s.like;
+  if (k === 'chord') proj.st.pad = s.like;
+}
+
+/* パターンを変えて、そのトラックを作り直す（メロディ・ベース・ドラムは同じタネで） */
+export function setStyle(proj, k, key) {
+  if (k === 'lead') {
+    proj.st.leadStyle = key;
+    regenerateTrack(proj, 'lead', { mel: clone(S.LEAD_STYLES[key].mel), seed: proj.st.seed });
+  } else if (k === 'chord') {
+    proj.st.chordStyle = key;
+    if (key === 'auto') regenerateTrack(proj, 'chord', { seed: proj.st.seed });
+    else proj.notes.chord = S.chordPattern(proj, key);
+  } else if (k === 'bass') regenerateTrack(proj, 'bass', { bassStyle: key, seed: proj.st.seed });
+  else regenerateTrack(proj, 'drum', { drums: key, seed: proj.st.seed });
+}
+
+/* いま選ばれているパターン（メロディは作り方の数値が一致するものがあれば） */
+export function styleOf(proj, k) {
+  if (k === 'bass') return proj.st.bassStyle;
+  if (k === 'drum') return proj.st.drums;
+  if (k === 'chord') return proj.st.chordStyle || 'auto';
+  const m = proj.st.mel;
+  const hit = Object.entries(S.LEAD_STYLES).find(([, v]) => Object.keys(v.mel).every(x => v.mel[x] === m[x]));
+  return hit ? hit[0] : (proj.st.leadStyle && S.LEAD_STYLES[proj.st.leadStyle] ? proj.st.leadStyle : null);
 }
 
 /* 1トラックだけ新しいタネで作り直す（ほかのトラックの編集は残る） */
@@ -154,6 +177,7 @@ export function regenerateTrack(proj, track, patch) {
   proj.notes[track] = notesFromEvents(song.events)[track];
   // タネはメロディの作り直しのときだけ本体に残す（ほかは音色や型の選択だけ残す）
   if (track === 'lead') proj.st.seed = st.seed;
+  if (track === 'chord' && (!patch || patch.seed === undefined)) proj.st.chordStyle = 'auto';
   for (const k of Object.keys(patch || {})) if (k !== 'seed') proj.st[k] = st[k];
 }
 
@@ -196,6 +220,8 @@ export function exportState(proj) {
   st.mute = {}; st.partVol = {};
   for (const k of TRACKS) { st.mute[k] = !!proj.mix[k].mute; st.partVol[k] = proj.mix[k].vol; }
   st.sections = proj.bars / 16;
+  // エディタだけの音色は、MIDI の音色番号を音色表から渡す
+  st.gm = { lead: soundOf(proj, 'lead').gm, chord: soundOf(proj, 'chord').gm, bass: soundOf(proj, 'bass').gm };
   return st;
 }
 
@@ -238,6 +264,9 @@ export function parseProject(text) {
     st[k] = clamp(+st[k] || 0, 0, 100);
   st.scale = E.SCALES[st.scale] ? st.scale : P.scale;
   st.seed = (+st.seed | 0) || 1000;
+  if (st.leadStyle !== undefined && !S.LEAD_STYLES[st.leadStyle]) delete st.leadStyle;
+  if (st.chordStyle !== undefined && !S.CHORD_STYLES[st.chordStyle]) delete st.chordStyle;
+  delete st.gm;
   for (const k of TRACKS) { st.mute[k] = false; st.partVol[k] = st.partVol[k] ?? 80; }
 
   const end = bars * beats * 2;
@@ -267,18 +296,37 @@ export function parseProject(text) {
   const mix = {};
   for (const k of TRACKS) {
     const m = (o.mix || {})[k] || {};
-    const tn = m.tone || {}, fx = m.fx || {};
+    const tn = m.tone || {};
     mix[k] = { vol: num(m.vol, 0, 100, 80), pan: num(m.pan, -100, 100, 0), rev: num(m.rev, 0, 100, 50),
       mute: !!m.mute, solo: !!m.solo,
       tone: { bright: num(tn.bright, 0, 100, 50), attack: num(tn.attack, 0, 100, 50), length: num(tn.length, 0, 100, 50), color: num(tn.color, 0, 100, 50) },
-      fx: { drive: num(fx.drive, 0, 100, 0), comp: num(fx.comp, 0, 100, 0) } };
+      rack: F.sanitizeRack(m.rack || oldFx(m.fx)) };
+    const def = k === 'lead' ? st.lead : k === 'chord' ? st.pad : S.DEFAULT_SOUND[k];
+    mix[k].sound = S.SOUND_TABLE[k][m.sound] ? m.sound : def;
   }
-  mix.bass.sound = BASS_TONES[(o.mix || {}).bass?.sound] ? o.mix.bass.sound : 'tri';
   const fxAll = { revLen: num((o.fx || {}).revLen, REV_LEN.min, REV_LEN.max, REV_LEN.def) };
   return { format: FORMAT, version: VERSION, recipe: String(o.recipe || ''), st, bars, beats, chords, mix, fx: fxAll, notes };
 }
 
+/* 前の版の「歪み・コンプ」（0〜100）をラックに置き換える */
+function oldFx(fx) {
+  const out = [];
+  if (!fx) return out;
+  if (+fx.drive > 0) out.push({ type: 'dist', on: true, p: Object.assign(F.defaultParams('dist'), { drive: +fx.drive }) });
+  if (+fx.comp > 0) {
+    const c = +fx.comp / 100;
+    out.push({ type: 'comp', on: true, p: Object.assign(F.defaultParams('comp'), { threshold: Math.round(-c * 30), ratio: Math.round(1 + c * 7), attack: 8, gain: Math.round(c * 9) }) });
+  }
+  return out;
+}
+
 /* ---------- 発音 ---------- */
+
+/* いま選ばれている音色の定義 */
+export function soundOf(proj, k) {
+  const t = S.SOUND_TABLE[k];
+  return t[proj.mix[k].sound] || t[k === 'lead' ? proj.st.lead : k === 'chord' ? proj.st.pad : S.DEFAULT_SOUND[k]];
+}
 
 /* いま鳴らすトラック（ミュートとソロを反映） */
 export function audible(proj) {
@@ -301,8 +349,50 @@ export function applyMix(rig, proj, on, ramp) {
     if (k === 'drum') set(rig.drumWet.gain, g * m.rev / 50);
     else set(rig.sends[k].gain, base[k] * m.rev / 50);
   }
-  rig.bass.set(BASS_TONES[proj.mix.bass.sound]?.cfg || BASS_TONES.tri.cfg);
+  applySounds(rig, proj, t);
   applyTone(rig, proj, t);
+  F.applyRacks(E.getTone(), rig, proj, { bpm: proj.st.bpm, beats: proj.beats, loopSec: loopSeconds(proj) });
+}
+
+/* 音色を rig に入れる。発振器の作り直しで音が途切れないよう、変わったときだけ */
+function applySounds(rig, proj, t) {
+  if (!rig._snd) {
+    // rig.apply（曲調の音色に戻す）が呼ばれたら、次はかならず入れ直す
+    const a = rig.apply;
+    rig.apply = function (...x) { rig._snd = {}; return a.apply(this, x); };
+    rig._snd = {};
+  }
+  const set = (param, v) => { if (t > 0) param.rampTo(v, t); else param.value = v; };
+  const L = soundOf(proj, 'lead'), D = soundOf(proj, 'chord');
+  if (rig._snd.lead !== proj.mix.lead.sound) { rig.lead.set(L.cfg); set(rig.lead.volume, L.vol); rig._snd.lead = proj.mix.lead.sound; }
+  if (rig._snd.chord !== proj.mix.chord.sound) {
+    rig.chords.set(D.cfg); set(rig.chords.volume, D.vol);
+    if (rig.chFilt) set(rig.chFilt.frequency, S.chordFilt(D));
+    rig._snd.chord = proj.mix.chord.sound;
+  }
+  if (rig._snd.bass !== proj.mix.bass.sound) {
+    const b = S.bassCfg(proj.mix.bass.sound);
+    rig.bass.set({ oscillator: b.oscillator });
+    set(rig.bass.volume, b.vol);
+    rig._snd.bass = proj.mix.bass.sound;
+  }
+  if (rig._snd.drum !== proj.mix.drum.sound) { applyKit(rig, S.drumKit(proj.mix.drum.sound)); rig._snd.drum = proj.mix.drum.sound; }
+}
+function applyKit(rig, kit) {
+  const f = rig.filt || {};
+  const vol = (s, v) => { if (s && v !== undefined) s.volume.value = v; };
+  const dec = (s, v) => { if (s && v !== undefined) s.envelope.decay = v; };
+  rig.kick.pitchDecay = kit.kick.pitchDecay; rig.kick.octaves = kit.kick.octaves; dec(rig.kick, kit.kick.decay); vol(rig.kick, kit.kick.vol);
+  dec(rig.snare, kit.snare.decay); vol(rig.snare, kit.snare.vol); if (f.snHP) f.snHP.frequency.value = kit.snare.hp;
+  dec(rig.snBody, kit.snBody.decay); vol(rig.snBody, kit.snBody.vol);
+  dec(rig.hat, kit.hat.decay); vol(rig.hat, kit.hat.vol); if (f.hatHP) f.hatHP.frequency.value = kit.hat.hp;
+  dec(rig.ohat, kit.ohat.decay); vol(rig.ohat, kit.ohat.vol); if (f.ohHP) f.ohHP.frequency.value = kit.ohat.hp;
+  dec(rig.clap, kit.clap.decay); vol(rig.clap, kit.clap.vol); if (f.clapBP) f.clapBP.frequency.value = kit.clap.bp;
+  dec(rig.rim, kit.rim.decay); vol(rig.rim, kit.rim.vol); if (f.rimBP) f.rimBP.frequency.value = kit.rim.bp;
+  rig.tom.pitchDecay = kit.tom.pitchDecay; dec(rig.tom, kit.tom.decay); vol(rig.tom, kit.tom.vol);
+  dec(rig.boom, kit.boom.decay); vol(rig.boom, kit.boom.vol);
+  dec(rig.crash, kit.crash.decay); vol(rig.crash, kit.crash.vol);
+  dec(rig.shaker, kit.shaker.decay); vol(rig.shaker, kit.shaker.vol);
 }
 
 /* 0〜100（50がそのまま）を倍率に */
@@ -312,37 +402,26 @@ function scaleEnv(env, tn) {
   const m = curve(tn.length, 2.3);
   return Object.assign({}, env, { attack: Math.max(.001, a), decay: Math.max(.01, env.decay * m), release: Math.max(.01, env.release * m) });
 }
-/* 音色の傾向とエフェクトを rig に流す（applyMix から呼ぶ） */
+/* 音作りのつまみを rig に流す（applyMix から呼ぶ） */
 function applyTone(rig, proj, t) {
   if (!rig.fx || !rig.fx.lead) return;
-  // 直線で動かす（rampTo は指数カーブなので、0 を含む範囲のしきい値などでエラーになる）
   const set = (param, v) => { if (!param) return; if (t > 0) param.linearRampTo(v, t); else param.value = v; };
   for (const k of TRACKS) {
-    const tn = proj.mix[k].tone || defaultTone(), fx = proj.mix[k].fx || defaultFx(), f = rig.fx[k];
-    // 明るさ：50より下はローパスで暗く、上はハイシェルフで持ち上げる
+    const tn = proj.mix[k].tone || defaultTone(), f = rig.fx[k];
+    // ブライトネス：50より下はローパスでこもらせ、上はハイシェルフで持ち上げる
     set(f.lp.frequency, tn.bright < 50 ? 380 * Math.pow(2, tn.bright / 50 * 5.7) : 20000);
     set(f.shelf.gain, tn.bright > 50 ? (tn.bright - 50) / 50 * 10 : 0);
-    // 歪み：かけるほど音量が上がるので、少し下げて釣り合わせる
-    const d = fx.drive / 100;
-    f.dist.distortion = d * .85;
-    set(f.dist.wet, d > 0 ? Math.min(1, .35 + d) : 0);
-    // コンプ：しきい値を下げて比率を上げ、下がったぶんを持ち上げる
-    const c = fx.comp / 100;
-    // しきい値は 0 以下しか取れず、ramp は始点の 0 を 1e-7 に置き換えて範囲外になるので直接入れる
-    f.comp.threshold.value = Math.min(-.1, -c * 30);
-    f.comp.ratio.value = 1 + c * 7;
-    set(f.makeup.gain, Math.pow(10, (c * 9 - d * 5) / 20));
   }
-  // 音の形（立ち上がり・余韻・倍音）。50 なら音色表の値そのもの
-  const L = E.LEADS[proj.st.lead].cfg, D = E.PADS[proj.st.pad].cfg;
+  // エンベロープと FM・フィルターの深さ。50 なら音色表の値そのもの
+  const L = soundOf(proj, 'lead').cfg, D = soundOf(proj, 'chord').cfg, B = S.bassCfg(proj.mix.bass.sound);
   const tl = proj.mix.lead.tone || defaultTone(), tc = proj.mix.chord.tone || defaultTone(), tb = proj.mix.bass.tone || defaultTone();
   const mi = L.modulationIndex > 0 ? L.modulationIndex * curve(tl.color, 2) : Math.max(0, (tl.color - 50) / 50 * 3);
   rig.lead.set({ envelope: scaleEnv(L.envelope, tl), modulationIndex: mi });
   rig.chords.set({ envelope: scaleEnv(D.envelope, tc) });
   rig.bass.set({
-    envelope: scaleEnv(BASS_BASE.envelope, tb),
-    filterEnvelope: Object.assign({}, BASS_BASE.filterEnvelope, { octaves: BASS_BASE.filterEnvelope.octaves * curve(tb.color, 1.3) }),
-    filter: { Q: BASS_BASE.filter.Q + Math.max(0, tb.color - 50) / 50 * 6 },
+    envelope: scaleEnv(B.envelope, tb),
+    filterEnvelope: Object.assign({}, B.filterEnvelope, { octaves: B.filterEnvelope.octaves * curve(tb.color, 1.3) }),
+    filter: { Q: B.filter.Q + Math.max(0, tb.color - 50) / 50 * 6 },
   });
 }
 
@@ -380,7 +459,7 @@ export function schedule(transport, rig, proj) {
   E.scheduleAll(transport, rig, { events: drum, epb }, { mute: {} });
 }
 
-/* 1周ぶんをオフラインで合成（残響のしっぽ込み） */
+/* 1周ぶんをオフラインで合成（リバーブのしっぽ込み） */
 export async function renderOffline(proj, loopSec, tail, onRetry) {
   const Tone = E.getTone();
   const liveRate = Tone.getContext().sampleRate || 44100;
@@ -405,5 +484,6 @@ export async function renderOffline(proj, loopSec, tail, onRetry) {
 
 export const loopSeconds = proj => proj.bars * proj.beats * 60 / proj.st.bpm;
 export const revLen = proj => (proj.fx && proj.fx.revLen) || REV_LEN.def;
-/* 書き出しで合成するしっぽ。残響が長いほど伸ばして、頭に折り返すぶんを取りこぼさない */
-export const tailSeconds = proj => Math.max(3.4, revLen(proj) + 1.4);
+/* 書き出しで合成するしっぽ。リバーブやディレイが長いほど伸ばして、頭に折り返すぶんを取りこぼさない */
+export const tailSeconds = proj => Math.min(16, Math.max(3.4, revLen(proj) + 1.4,
+  F.rackTail(proj, { bpm: proj.st.bpm, beats: proj.beats }) + 1));
