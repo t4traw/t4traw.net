@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /*
   build-standalone.mjs — engine.js + controls.js + app.js + standalone.css を
-  1枚の loop-bgm-studio.html に焼き込む。オフラインでも開ける（Tone.js は同じフォルダの
+  1枚の loop-bgm-maker.html に焼き込む。オフラインでも開ける（Tone.js は同じフォルダの
   Tone.js → cdnjs → jsdelivr の順に探す）。Claude のプロジェクトに置く用・配布用。
   この HTML は成果物なので手で編集しない。直すのは src/scripts/loop-bgm-studio/ の方。
 
-  node tools/bgm/build-standalone.mjs [出力先]   既定: tools/bgm/out/loop-bgm-studio.html
+  node tools/bgm/build-standalone.mjs [出力先]   既定: tools/bgm/out/loop-bgm-maker.html
 */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const here=path.dirname(fileURLToPath(import.meta.url));
 const src=path.join(here,'../../src/scripts/loop-bgm-studio');
-const out=process.argv[2]||path.join(here,'out/loop-bgm-studio.html');
+const out=process.argv[2]||path.join(here,'out/loop-bgm-maker.html');
 
 const E=await import(path.join(src,'engine.js'));
 const C=await import(path.join(src,'controls.js'));
@@ -106,7 +106,7 @@ const html=`<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>ループBGMスタジオ</title>
+<title>ループBGMメーカー</title>
 <!-- built by tools/bgm/build-standalone.mjs — 手で編集しない -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -119,7 +119,7 @@ ${fs.readFileSync(path.join(here,'standalone.css'),'utf8')}
 <div class="wrap">
 
 <header class="top">
-  <h1>ループBGMスタジオ<span class="sub">曲調から組み替えて、飽きないループをつくる</span></h1>
+  <h1>ループBGMメーカー<span class="sub">曲調から組み替えて、飽きないループをつくる</span></h1>
   <button class="themebtn" id="theme" type="button">表示を切り替え</button>
 </header>
 

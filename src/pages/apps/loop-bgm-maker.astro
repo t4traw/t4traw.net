@@ -1,0 +1,466 @@
+---
+import Layout from "@layouts/Layout.astro";
+import {
+  PRESETS,
+  SCALES,
+  LEADS,
+  PADS,
+  BASSES,
+  KITS,
+  KEY_NAMES,
+} from "../../scripts/loop-bgm-studio/data.js";
+import {
+  SECTIONS,
+  PARTS,
+  knobsIn,
+  segsIn,
+  chipsIn,
+} from "../../scripts/loop-bgm-studio/controls.js";
+
+const container =
+  "container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96";
+const deck =
+  "rounded-2xl border border-zinc-700 bg-zinc-900/40 p-5 md:p-6 flex flex-col gap-4";
+const heading = "text-white text-base font-bold";
+const note = "ml-2 text-xs font-normal text-neutral-400";
+const label = "text-sm text-neutral-400";
+const select =
+  "w-full cursor-pointer rounded-xl border border-zinc-600 bg-zinc-800 px-3 py-2.5 text-sm font-bold text-white hover:border-[#FE5F55] focus:outline-none focus-visible:border-[#FE5F55]";
+const range = "w-full h-6 cursor-pointer accent-[#FE5F55]";
+const output = "text-sm font-bold text-white tabular-nums";
+const status =
+  "text-sm leading-relaxed text-neutral-400 data-[bad=true]:text-[#FE9A94]";
+const ghost =
+  "rounded-full border border-zinc-600 px-4 py-2 text-sm font-bold text-white transition hover:border-[#FE5F55] hover:text-[#FE9A94] disabled:cursor-not-allowed disabled:opacity-40";
+const segCls =
+  "grid grid-cols-2 w-full sm:inline-flex sm:w-auto overflow-hidden rounded-2xl sm:rounded-full border border-zinc-600 bg-zinc-800";
+const segBtn =
+  "px-2 sm:px-4 py-2 text-center text-sm font-bold text-neutral-400 transition hover:text-white aria-pressed:bg-[#FE5F55] aria-pressed:text-white";
+const chip =
+  "rounded-full border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm font-bold text-neutral-400 transition hover:text-white aria-pressed:border-[#FE5F55] aria-pressed:bg-[#FE5F55] aria-pressed:text-white";
+const row = "flex flex-wrap items-center gap-3 md:gap-4";
+const rowLabel = "min-w-[5.5em] text-sm text-neutral-400";
+
+const tables = { LEADS, PADS, BASSES, KITS };
+const [volKnob] = knobsIn("transport");
+const disabledRow =
+  "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40";
+---
+
+<Layout
+  title="ループBGMメーカー - t4traw.net"
+  description="コード進行や音色を組み替えて、継ぎ目なくループするBGMをブラウザの中でつくって書き出せるWebアプリ「ループBGMメーカー」。"
+>
+  <!-- ヒーロー -->
+  <div class={`${container} py-8 md:py-16`}>
+    <div
+      class="flex flex-col md:flex-row md:items-center gap-8 md:gap-12 text-center md:text-left"
+    >
+      <img
+        src="/apps/loop-bgm-maker/icon.png"
+        alt="ループBGMメーカーのアイコン"
+        width="160"
+        height="160"
+        class="mx-auto md:mx-0 h-28 w-28 md:h-40 md:w-40 shrink-0 rounded-[22%] shadow-2xl"
+      />
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <div
+            class="text-neutral-200 text-base font-normal font-['Inter'] leading-normal"
+          >
+            Web App
+          </div>
+          <h1 class="text-white text-4xl md:text-5xl font-bold">
+            ループBGMメーカー
+          </h1>
+        </div>
+        <p class="text-white text-md font-medium leading-loose">
+          作曲も合成もブラウザの中だけで完結して、そのままゲームに入れられる音源を書き出せるアプリケーション。
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <hr />
+
+  <!-- メーカー本体 -->
+  <div class={`${container} py-8 md:py-16 flex flex-col gap-5`}>
+    <!-- 再生 -->
+    <section class={deck}>
+      <div
+        class="relative overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950/60"
+      >
+        <canvas
+          id="roll"
+          width="1400"
+          height="420"
+          class="block h-[210px] w-full"
+          aria-label="演奏中のノートの流れ"></canvas>
+        <div
+          class="pointer-events-none absolute left-4 top-3 flex items-baseline gap-3"
+        >
+          <span id="chordname" class="text-3xl font-black leading-none text-white"
+          ></span>
+          <span id="barcount" class="text-sm tabular-nums text-neutral-400"
+          ></span>
+        </div>
+        <div
+          id="hint"
+          class="absolute inset-0 grid place-items-center bg-zinc-950/75 px-6 text-center text-sm leading-loose text-neutral-300"
+        >
+          再生ボタンを押すと、その場で曲を作成できます
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-3 md:gap-4">
+        <button
+          id="play"
+          type="button"
+          aria-label="再生"
+          class="grid h-[74px] w-[74px] flex-none place-items-center rounded-full bg-[#FE5F55] text-white shadow-[0_6px_0_-1px_#a33a33] transition active:translate-y-1 active:shadow-[0_2px_0_-1px_#a33a33] disabled:cursor-wait disabled:bg-zinc-600 disabled:shadow-none"
+        >
+          <svg
+            id="iconPlay"
+            viewBox="0 0 24 24"
+            class="h-8 w-8 fill-current"
+            aria-hidden="true"><path d="M7 4.5v15l13-7.5z"></path></svg
+          >
+          <svg
+            id="iconPause"
+            viewBox="0 0 24 24"
+            class="hidden h-8 w-8 fill-current"
+            aria-hidden="true"
+            ><rect x="6" y="4.5" width="4.2" height="15" rx="1"></rect><rect
+              x="13.8"
+              y="4.5"
+              width="4.2"
+              height="15"
+              rx="1"></rect></svg
+          >
+        </button>
+        <button id="dice" type="button" class={`${ghost} px-5 py-3 text-base`}>
+          ランダム生成
+        </button>
+        <button id="reroll" type="button" class={ghost}>
+          メロディだけ再生成
+        </button>
+        <div
+          class="grid w-full grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 sm:ml-auto sm:w-56"
+          title="この画面で聴くときだけの音量。書き出される音源のレベルには影響しない"
+        >
+          <label for={volKnob.id} class={label}>{volKnob.label}</label>
+          <output data-knob-out={volKnob.id} class={output}></output>
+          <input
+            type="range"
+            id={volKnob.id}
+            data-knob={volKnob.id}
+            min={volKnob.min ?? 0}
+            max={volKnob.max ?? 100}
+            step="1"
+            class={`${range} col-span-2`}
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class={deck}>
+      <h2 class={heading}>
+        曲調<span class={note}>コード進行・拍子・テンポ・編成のひな型</span>
+      </h2>
+      <div
+        id="moods"
+        class="grid grid-cols-[repeat(auto-fill,minmax(158px,1fr))] gap-2.5"
+      >
+        {
+          Object.entries(PRESETS).map(([k, p]) => (
+            <button
+              type="button"
+              data-k={k}
+              aria-pressed="false"
+              class="group rounded-xl border border-zinc-700 bg-zinc-800/60 px-3.5 py-3 text-left leading-snug transition hover:border-zinc-500 aria-pressed:border-[#FE5F55] aria-pressed:bg-[#FE5F55]/15"
+            >
+              <b class="block text-base font-black text-white">{p.label}</b>
+              <i class="mt-0.5 block text-[11px] not-italic tabular-nums text-neutral-400 group-aria-pressed:text-neutral-200">
+                {p.beats}拍子 · {p.bpm} BPM{p.swing ? " · はねる" : ""}
+              </i>
+              <span class="mt-1 block text-xs text-neutral-400 group-aria-pressed:text-neutral-200">
+                {p.desc}
+              </span>
+            </button>
+          ))
+        }
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="grid gap-1.5">
+          <label for="selKey" class={label}>キー（移調）</label>
+          <select id="selKey" class={select}>
+            {
+              KEY_NAMES.map((name, i) => (
+                <option value={String(i)}>
+                  {name}
+                  {i ? `（+${i}）` : "（原調）"}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+        <div class="grid gap-1.5">
+          <label for="selScale" class={label}>メロディの音階</label>
+          <select id="selScale" class={select}>
+            {
+              Object.entries(SCALES).map(([k, v]) => (
+                <option value={k}>{v.name}</option>
+              ))
+            }
+          </select>
+        </div>
+      </div>
+      <p id="scaleNote" class={status}></p>
+    </section>
+
+    <!-- 音色 -->
+    <section class={deck}>
+      <h2 class={heading}>
+        音色<span class={note}>パートごとに、楽器・鳴らすかどうか・音量</span>
+      </h2>
+      <div class="grid gap-2.5">
+        {
+          PARTS.map((part) => (
+            <div
+              data-part={part.key}
+              data-off="false"
+              class="group/part grid grid-cols-[1fr_1fr_42px] items-center gap-x-2.5 gap-y-2 rounded-xl border border-zinc-700 bg-zinc-800/60 px-3 py-2.5 [grid-template-areas:'n_n_n'_'s_s_k'_'v_v_o'] sm:grid-cols-[5em_minmax(150px,1fr)_42px_minmax(120px,1.3fr)_2.4em] sm:gap-3 sm:[grid-template-areas:'n_s_k_v_o']"
+            >
+              <label
+                for={part.selId}
+                class="[grid-area:n] text-sm font-black text-white group-data-[off=true]/part:text-neutral-500"
+              >
+                {part.name}
+              </label>
+              <select
+                id={part.selId}
+                class={`${select} [grid-area:s] bg-zinc-900 group-data-[off=true]/part:opacity-40`}
+              >
+                {Object.entries(tables[part.table]).map(([k, v]) => (
+                  <option value={k}>{v.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                data-spk={part.key}
+                aria-pressed="true"
+                class="group/spk [grid-area:k] grid h-[42px] w-[42px] place-items-center rounded-full border border-zinc-600 bg-zinc-900 text-neutral-400 transition aria-pressed:border-[#3fcbaf] aria-pressed:bg-[#3fcbaf] aria-pressed:text-white"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                  class="hidden h-6 w-6 group-aria-pressed/spk:block"
+                >
+                  <path
+                    d="M3.5 9.5v5h3.8l4.7 4V5.5l-4.7 4z"
+                    fill="currentColor"
+                    stroke="none"
+                  />
+                  <path d="M15.5 9.2a4 4 0 0 1 0 5.6" />
+                  <path d="M18.3 6.6a7.6 7.6 0 0 1 0 10.8" />
+                </svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                  class="h-6 w-6 group-aria-pressed/spk:hidden"
+                >
+                  <path
+                    d="M3.5 9.5v5h3.8l4.7 4V5.5l-4.7 4z"
+                    fill="currentColor"
+                    stroke="none"
+                  />
+                  <path d="M16 9.5l5 5M21 9.5l-5 5" />
+                </svg>
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                step="1"
+                data-pvol={part.key}
+                aria-label={`${part.name}の音量`}
+                class={`${range} [grid-area:v] group-data-[off=true]/part:opacity-40`}
+              />
+              <output
+                data-pout={part.key}
+                class={`${output} [grid-area:o] text-right group-data-[off=true]/part:opacity-40`}
+              />
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    {
+      ["melody", "arrange", "mix"].map((sec) => (
+        <section class={deck}>
+          <h2 class={heading}>
+            {SECTIONS[sec].title}
+            {SECTIONS[sec].note && (
+              <span class={note}>{SECTIONS[sec].note}</span>
+            )}
+          </h2>
+          <div class="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-x-6 gap-y-3.5">
+            {knobsIn(sec).map((knob) => (
+              <div class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
+                <label for={knob.id} class={label}>
+                  {knob.label}
+                </label>
+                <output data-knob-out={knob.id} class={output} />
+                <input
+                  type="range"
+                  id={knob.id}
+                  data-knob={knob.id}
+                  min={knob.min ?? 0}
+                  max={knob.max ?? 100}
+                  step="1"
+                  class={`${range} col-span-2`}
+                />
+              </div>
+            ))}
+          </div>
+          {segsIn(sec).map((sg) => (
+            <div class={row}>
+              <span class={rowLabel}>{sg.label}</span>
+              <div
+                data-seg={sg.name}
+                class={`${segCls} ${sg.options.length === 3 ? "grid-cols-3" : ""}`}
+              >
+                {sg.options.map(([, text], i) => (
+                  <button type="button" data-i={i} class={segBtn}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+              {sg.info && <span id={sg.info} class={status} />}
+            </div>
+          ))}
+          {chipsIn(sec).map((c) => (
+            <div class={row}>
+              <span class={rowLabel}>{c.label}</span>
+              <div class="flex flex-wrap gap-2">
+                {c.items.map(([path, text]) => (
+                  <button type="button" data-chip={path} class={chip}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+          {knobsIn(sec).some((k) => k.help) && (
+            <ul class="flex flex-col gap-1 text-xs leading-relaxed text-neutral-400">
+              {knobsIn(sec)
+                .filter((k) => k.help)
+                .map((k) => (
+                  <li>
+                    <b class="font-bold text-neutral-200">{k.label}</b>：{k.help}
+                  </li>
+                ))}
+              {SECTIONS[sec].foot && <li>{SECTIONS[sec].foot}</li>}
+            </ul>
+          )}
+        </section>
+      ))
+    }
+
+    <!-- レシピコード -->
+    <section class={deck}>
+      <h2 class={heading}>
+        レシピコード<span class={note}>この1行で、いまの設定がまるごと戻る</span>
+      </h2>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <input
+          id="codeIn"
+          spellcheck="false"
+          autocomplete="off"
+          aria-label="レシピコード"
+          class="min-w-0 flex-[1_1_340px] rounded-xl border border-zinc-600 bg-zinc-800 px-3.5 py-2.5 font-mono text-sm tracking-wider text-white focus:border-[#FE5F55] focus:outline-none"
+        />
+        <button id="codeApply" type="button" class={ghost}>読み込む</button>
+        <button id="codeCopy" type="button" class={ghost}>コピー</button>
+      </div>
+      <p id="codeStatus" class={status}>
+        書き出したファイル名の末尾にも同じコードが入るから、あとから音源だけ見つけても完全に復元できる。
+      </p>
+    </section>
+
+    <!-- 書き出し -->
+    <section class={deck}>
+      <h2 class={heading}>書き出し</h2>
+      {
+        segsIn("export").map((sg) => (
+          <>
+            <div
+              id={sg.row}
+              class={sg.row ? `${row} transition-opacity ${disabledRow}` : row}
+            >
+              <span class={rowLabel}>{sg.label}</span>
+              <div data-seg={sg.name} class={segCls}>
+                {sg.options.map(([, text], i) => (
+                  <button type="button" data-i={i} class={segBtn}>
+                    {text}
+                  </button>
+                ))}
+              </div>
+              {sg.info && <span id={sg.info} class={status} />}
+            </div>
+            {sg.name === "fmt" && <p id="fmtNote" class={status} />}
+          </>
+        ))
+      }
+      <div class={`${row} mt-1`}>
+        <button
+          id="export"
+          type="button"
+          class="rounded-full bg-white px-6 py-3.5 text-base font-black text-zinc-900 transition hover:bg-[#FE5F55] hover:text-white disabled:cursor-not-allowed disabled:bg-zinc-600 disabled:text-neutral-400"
+        >
+          書き出す
+        </button>
+        <p id="exportStatus" class={status}>
+          いま鳴っているのと同じ演奏を保存する。
+        </p>
+      </div>
+    </section>
+  </div>
+
+  <hr />
+
+  <!-- メモ -->
+  <div class={`${container} py-8 md:py-16`}>
+    <div class="prose prose-invert max-w-none">
+      <h2>メモ</h2>
+      <ul class="list-disc">
+        <li>
+          <strong>ループのつなぎ目</strong>：残響が末尾で切れないよう、はみ出た分を先頭に折り返してあります。さらに長さを
+          IMA4 のパケット境界（64 フレーム）に合わせてあるので、無限ループしても継ぎ目は出ません。
+        </li>
+        <li>
+          <strong>権利</strong>：鳴っているのは全部その場で生成されたオリジナルです。商用でも自由に使って大丈夫です。
+        </li>
+        <li>
+          音はすべてブラウザの中で合成しています。つくった曲や設定がどこかへ送られることはありません。
+        </li>
+      </ul>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { startStudio } from "../../scripts/loop-bgm-studio/app.js";
+  // Tone.js は重いので、最初に再生を押したときに読み込む
+  startStudio({ loadTone: () => import("tone") });
+</script>

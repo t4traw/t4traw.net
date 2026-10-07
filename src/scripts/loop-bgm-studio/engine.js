@@ -1,5 +1,5 @@
 /*
-  ループBGMスタジオのエンジン（正本）。DOM には触らない。
+  ループBGMメーカー／ループBGMスタジオ共通のエンジン（正本）。DOM には触らない。
   理論・音色表・曲調・進行・buildSong・アレンジ・ドラム・おまかせ・レシピコード・MIDI・
   音源グラフ・スケジュール・WAV/CAF/IMA4/ZIP の書き出しまで全部ここ。
   Astro ページ、単体HTML（tools/bgm/build-standalone.mjs）、CLI（tools/bgm/bgm-tool.mjs）、

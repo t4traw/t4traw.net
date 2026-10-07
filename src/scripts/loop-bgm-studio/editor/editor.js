@@ -1,5 +1,5 @@
 /*
-  ループBGMスタジオ エディタ版の画面。
+  ループBGMスタジオ（エディタ）の画面。
   曲調はレシピ（ジャンル＋タネ）から作り、そこから先はノートを直接いじる。保存は JSON。
 
   canvas の中の縦の並び:
@@ -406,7 +406,7 @@ export function startEditor({ loadTone }) {
     const ch = contentH(), vh = bottom - RULER;
     if (ch > vh) {
       const h = Math.max(24, vh * vh / ch), y = RULER + (vh - h) * (scrollY / Math.max(1, ch - vh));
-      cx.fillStyle = 'rgba(233,230,220,.16)'; rr(W - 4, y, 3, h, 1.5); cx.fill();
+      cx.fillStyle = 'rgba(233,230,220,.28)'; rr(W - 10, y + 2, 8, h - 4, 4); cx.fill();
     }
 
     // いまの和音と小節
@@ -1033,13 +1033,19 @@ export function startEditor({ loadTone }) {
   }
 
   let wheelAcc = 0;
+  // ふつうのホイールは横、⇧+ホイールで縦。横スワイプ（トラックパッド）はそのまま横。
+  // mac は ⇧+ホイールを OS が横（deltaX）に変えてくるので、それも縦に戻す
+  const wheelXY = e => {
+    const dx = e.deltaX, dy = e.deltaY;
+    if (e.shiftKey) return dx && !dy ? [0, dx] : [dx, dy];
+    return dy && !dx ? [dy, 0] : [dx, dy];
+  };
   cv.addEventListener('wheel', e => {
     e.preventDefault();
     const [px, py] = pos(e);
     if (isDrum()) {
       // 横のホイールでページ送り、縦は行のスクロール
-      let dx = e.deltaX, dy = e.deltaY;
-      if (e.shiftKey && !dx) { dx = dy; dy = 0; }
+      const [dx, dy] = wheelXY(e);
       wheelAcc += dx;
       if (Math.abs(wheelAcc) > 60) { setPage(page + Math.sign(wheelAcc)); wheelAcc = 0; if (following()) setFollow(false); }
       scrollY += dy; clampScroll(); draw();
@@ -1054,8 +1060,7 @@ export function startEditor({ loadTone }) {
       rowH = clamp(rowH * Math.exp(-e.deltaY * .01), 3, 22);
       scrollY = n * rowH - (py - RULER);
     } else {
-      let dx = e.deltaX, dy = e.deltaY;
-      if (e.shiftKey && !dx) { dx = dy; dy = 0; }
+      const [dx, dy] = wheelXY(e);
       // 横に動かしたら追尾はやめる（自分で見たい所を見ているので）
       if (Math.abs(dx) > 2 && smooth()) setFollow(false);
       scrollX += dx; scrollY += dy;

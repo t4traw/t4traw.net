@@ -14,9 +14,20 @@ const apps = [
   {
     name: "ループBGMスタジオ",
     nameJa: "",
-    tagline: "ゲーム用ループBGMを生成するウェブアプリ",
+    tagline: "音符やトラックの音色・エフェクトまで編集できるループBGMエディタ（PC向け）",
     icon: "/apps/loop-bgm-studio/icon.png",
+    // 横長のロゴがあるときはアイコンと同じ大きさの枠に入れて出す（エディタ左上と同じもの）
+    logo: { src: "/apps/loop-bgm-studio/logo.svg", width: 218, height: 89 },
     href: "/apps/loop-bgm-studio",
+    platform: "Web",
+    status: "ブラウザ",
+  },
+  {
+    name: "ループBGMメーカー",
+    nameJa: "",
+    tagline: "ゲーム用ループBGMを生成するウェブアプリ",
+    icon: "/apps/loop-bgm-maker/icon.png",
+    href: "/apps/loop-bgm-maker",
     platform: "Web",
     status: "ブラウザ",
   },
@@ -43,13 +54,25 @@ const apps = [
               href={app.href}
               class="group flex flex-col sm:flex-row sm:items-center gap-5 sm:gap-8 rounded-2xl border border-zinc-700 bg-zinc-900/40 p-6 md:p-8 transition hover:border-zinc-500 hover:bg-zinc-900/80"
             >
-              <img
-                src={app.icon}
-                alt={`${app.name} のアプリアイコン`}
-                width="96"
-                height="96"
-                class="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-[22%] shadow-lg"
-              />
+              {app.logo ? (
+                <div class="flex h-20 w-20 sm:h-24 sm:w-24 shrink-0 items-center justify-center rounded-[22%] border border-zinc-700 bg-[#1c1c1c] p-2.5 shadow-lg">
+                  <img
+                    src={app.logo.src}
+                    alt={`${app.name} のロゴ`}
+                    width={app.logo.width}
+                    height={app.logo.height}
+                    class="h-auto w-full"
+                  />
+                </div>
+              ) : (
+                <img
+                  src={app.icon}
+                  alt={`${app.name} のアプリアイコン`}
+                  width="96"
+                  height="96"
+                  class="h-20 w-20 sm:h-24 sm:w-24 shrink-0 rounded-[22%] shadow-lg"
+                />
+              )}
               <div class="flex flex-col gap-2">
                 <div class="flex flex-wrap items-center gap-3">
                   <span class="text-white text-2xl font-bold font-['Inter']">

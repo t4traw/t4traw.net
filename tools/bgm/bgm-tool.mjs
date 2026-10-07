@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
-  bgm-tool.mjs — ループBGMスタジオのエンジンをコマンドラインから使う道具。
+  bgm-tool.mjs — ループBGMメーカー／スタジオ共通のエンジンをコマンドラインから使う道具。
   src/scripts/loop-bgm-studio/engine.js（正本）を直接 import するので、
   エンジンを改修してもこのファイルは直さなくていい。既定値は controls.js の defaultState。
 
@@ -13,7 +13,7 @@
                                                              メロディのタネを採点して上位を出す
     node tools/bgm/bgm-tool.mjs midi <code> <out.mid>        MIDIを書き出す
     node tools/bgm/bgm-tool.mjs check <code>                 往復・生成・範囲の検証
-    node tools/bgm/bgm-tool.mjs omakase [--count N]          スタジオの「ランダム生成」と同じ規則で案を出す
+    node tools/bgm/bgm-tool.mjs omakase [--count N]          メーカーの「ランダム生成」と同じ規則で案を出す
 */
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +23,7 @@ import { defaultState } from '../../src/scripts/loop-bgm-studio/controls.js';
 const args=process.argv.slice(2);
 const opt=(name,def)=>{ const i=args.indexOf('--'+name); if(i<0) return def; const v=args[i+1]; args.splice(i,2); return v; };
 
-/* 新しく作る曲の既定（スタジオを開いたときと同じ）。タネだけ 1001 に固定 */
+/* 新しく作る曲の既定（メーカーを開いたときと同じ）。タネだけ 1001 に固定 */
 function defaults(o){
   const moodKey=(o&&o.preset)||'nonbiri';
   if(!E.PRESETS[moodKey]) throw new Error('unknown preset: '+moodKey+'  (node tools/bgm/bgm-tool.mjs list)');

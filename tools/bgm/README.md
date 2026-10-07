@@ -1,6 +1,14 @@
-# ループBGMスタジオ（開発メモ）
+# ループBGMメーカー／ループBGMスタジオ（開発メモ）
 
-`/apps/loop-bgm-studio` で公開しているループBGMスタジオの正本は、このリポジトリのモジュール。
+同じエンジンで2つのアプリを公開している（2026-10-07 に名前を整理した）。正本はこのリポジトリのモジュール。
+
+| 名前 | URL | 中身 |
+|---|---|---|
+| ループBGMメーカー | `/apps/loop-bgm-maker` | 最初に公開したふつう版。曲調・音色を選んで生成して書き出す。スマホ対応 |
+| ループBGMスタジオ | `/apps/loop-bgm-studio` | エディタ版（プロ版）。音符・音色・エフェクトまで編集できる。PC 専用 |
+
+以前は「ループBGMスタジオ」がふつう版（`/apps/loop-bgm-studio`）、エディタ版が `/apps/loop-bgm-studio/editor` だった。旧エディタURLは `astro.config.mjs` の `redirects` で転送している。
+ソースのディレクトリ名（`src/scripts/loop-bgm-studio/`）は両方で共有しているのでそのまま。
 Astro ページも単体HTMLも CLI も、ここから作る。仕様・方針・曲の記録は [GUIDE.md](./GUIDE.md)。
 
 ## 構成
@@ -12,12 +20,14 @@ src/scripts/loop-bgm-studio/
   data.js       engine.js の表を再export ＋ KEY_NAMES（Astro ページのビルド時に使う）
   controls.js   画面の部品の一覧（スライダー・選択ボタン・トグル・パート行）と、開いたときの状態
   app.js        DOM の配線。controls.js を回して data 属性で部品を見つける。Astro と単体HTMLで共通
+src/pages/apps/loop-bgm-maker.astro
+                ループBGMメーカー。controls.js をビルド時に回して Tailwind で描画
 src/pages/apps/loop-bgm-studio.astro
-                controls.js をビルド時に回して Tailwind で描画
+                ループBGMスタジオ（エディタ）。サイトのヘッダー・フッターなしの単体ページ
 tools/bgm/
   bgm-test.mjs          検証と演奏の指紋（golden）
   bgm-tool.mjs          CLI（encode / decode / describe / seeds / check / midi / omakase / list）
-  build-standalone.mjs  単体HTMLを tools/bgm/out/loop-bgm-studio.html に焼く（成果物。手で編集しない）
+  build-standalone.mjs  単体HTMLを tools/bgm/out/loop-bgm-maker.html に焼く（ループBGMメーカー）（成果物。手で編集しない）
   standalone.css        単体HTMLの見た目（Zen Maru Gothic、明暗テーマ）
 ```
 
@@ -32,7 +42,7 @@ tools/bgm/
 | タネ | 同じ曲調・設定から別の演奏を作るための乱数の種 | `seed` |
 | レシピコード | 設定をまるごと詰めた1行のコード（ハッシュ） | `encodeRecipe` / `decodeRecipe` |
 
-エディタ版（`/apps/loop-bgm-studio/editor`）は DTM をやる人向けに近いので、DAW でふつうに使う言葉に寄せる（2026-10-07）。
+ループBGMスタジオ（エディタ版、`/apps/loop-bgm-studio`）は DTM をやる人向けに近いので、DAW でふつうに使う言葉に寄せる（2026-10-07）。
 
 | 画面の言葉 | 意味 | 以前の言葉・コード上の名前 |
 |---|---|---|
@@ -49,7 +59,7 @@ tools/bgm/
 | アレンジブラシ | 選んでいるトラックを、なぞった所だけ書き換えるブラシ。線の高さが音程の目安 | メロディ変更・ドラマ / `brushLead` `brushChord` `brushBass` `brushDrum` |
 | 曲の設定 | テンポ・キー・スウィング・マスタートーン・ループ長をまとめたモーダル | 以前は上の帯に並べていた |
 
-エディタ版（プロ版）は **PC 専用**として作る（2026-10-07）。スマホでは使う想定がないので、改修のときもスマホ・タッチ操作の確認はしなくていい（崩れていても直さなくていい）。スマホ対応が要るのはふつう版（`/apps/loop-bgm-studio`）だけ。
+エディタ版（プロ版）は **PC 専用**として作る（2026-10-07）。スマホでは使う想定がないので、改修のときもスマホ・タッチ操作の確認はしなくていい（崩れていても直さなくていい）。スマホ対応が要るのはループBGMメーカー（`/apps/loop-bgm-maker`）だけ。
 
 エディタのアイコンは [Remix Icon](https://remixicon.com/)（Apache-2.0）の SVG を埋め込む。新しく足すときもここから選ぶ（音作り＝sound-module-fill、エフェクト＝server-line、戻す・進む＝arrow-go-back/forward-line、4小節戻る＝rewind-fill など）。
 

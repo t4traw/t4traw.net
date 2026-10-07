@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /*
-  bgm-test.mjs — ループBGMスタジオのエンジン検証。改修のたびに全部通すこと。
+  bgm-test.mjs — ループBGMメーカー／スタジオ共通エンジンの検証。改修のたびに全部通すこと。
 
   node tools/bgm/bgm-test.mjs [engine]        engine = src/scripts/loop-bgm-studio/engine.js（既定）か、
-                                              ビルドした単体HTML（dist-standalone/loop-bgm-studio.html）
+                                              ビルドした単体HTML（dist-standalone/loop-bgm-maker.html）
   node tools/bgm/bgm-test.mjs --golden-print  いまのエンジンで指紋を計算して表示（意図して演奏を変えたときだけ更新）
 
   検査:

@@ -1,466 +1,668 @@
 ---
-import Layout from "@layouts/Layout.astro";
-import {
-  PRESETS,
-  SCALES,
-  LEADS,
-  PADS,
-  BASSES,
-  KITS,
-  KEY_NAMES,
-} from "../../scripts/loop-bgm-studio/data.js";
-import {
-  SECTIONS,
-  PARTS,
-  knobsIn,
-  segsIn,
-  chipsIn,
-} from "../../scripts/loop-bgm-studio/controls.js";
-
-const container =
-  "container m-auto px-8 sm:px-20 md:px-20 lg:px-40 xl:px-56 2xl:px-96";
-const deck =
-  "rounded-2xl border border-zinc-700 bg-zinc-900/40 p-5 md:p-6 flex flex-col gap-4";
-const heading = "text-white text-base font-bold";
-const note = "ml-2 text-xs font-normal text-neutral-400";
-const label = "text-sm text-neutral-400";
-const select =
-  "w-full cursor-pointer rounded-xl border border-zinc-600 bg-zinc-800 px-3 py-2.5 text-sm font-bold text-white hover:border-[#FE5F55] focus:outline-none focus-visible:border-[#FE5F55]";
-const range = "w-full h-6 cursor-pointer accent-[#FE5F55]";
-const output = "text-sm font-bold text-white tabular-nums";
-const status =
-  "text-sm leading-relaxed text-neutral-400 data-[bad=true]:text-[#FE9A94]";
-const ghost =
-  "rounded-full border border-zinc-600 px-4 py-2 text-sm font-bold text-white transition hover:border-[#FE5F55] hover:text-[#FE9A94] disabled:cursor-not-allowed disabled:opacity-40";
-const segCls =
-  "grid grid-cols-2 w-full sm:inline-flex sm:w-auto overflow-hidden rounded-2xl sm:rounded-full border border-zinc-600 bg-zinc-800";
-const segBtn =
-  "px-2 sm:px-4 py-2 text-center text-sm font-bold text-neutral-400 transition hover:text-white aria-pressed:bg-[#FE5F55] aria-pressed:text-white";
-const chip =
-  "rounded-full border border-zinc-600 bg-zinc-800 px-4 py-2 text-sm font-bold text-neutral-400 transition hover:text-white aria-pressed:border-[#FE5F55] aria-pressed:bg-[#FE5F55] aria-pressed:text-white";
-const row = "flex flex-wrap items-center gap-3 md:gap-4";
-const rowLabel = "min-w-[5.5em] text-sm text-neutral-400";
-
-const tables = { LEADS, PADS, BASSES, KITS };
-const [volKnob] = knobsIn("transport");
-const disabledRow =
-  "data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-40";
+// ループBGMスタジオ（エディタ）。サイトのヘッダー・フッターなしの単体ページ
+const title = "ループBGMスタジオ - t4traw.net";
+const description =
+  "ジャンルを選んで曲調を作ったら、音符を1つずつ動かしたり、トラックごとに音色・パターン・エフェクトを選んだりできるループBGMエディタ「ループBGMスタジオ」。JSONで保存して続きから編集でき、MIDI・WAV・CAFで書き出せる。";
 ---
 
-<Layout
-  title="ループBGMスタジオ - t4traw.net"
-  description="コード進行や音色を組み替えて、継ぎ目なくループするBGMをブラウザの中でつくって書き出せるWebアプリ「ループBGMスタジオ」。"
->
-  <!-- ヒーロー -->
-  <div class={`${container} py-8 md:py-16`}>
-    <div
-      class="flex flex-col md:flex-row md:items-center gap-8 md:gap-12 text-center md:text-left"
-    >
-      <img
-        src="/apps/loop-bgm-studio/icon.png"
-        alt="ループBGMスタジオのアイコン"
-        width="160"
-        height="160"
-        class="mx-auto md:mx-0 h-28 w-28 md:h-40 md:w-40 shrink-0 rounded-[22%] shadow-2xl"
-      />
-      <div class="flex flex-col gap-4">
-        <div class="flex flex-col gap-1">
-          <div
-            class="text-neutral-200 text-base font-normal font-['Inter'] leading-normal"
-          >
-            Web App
-          </div>
-          <h1 class="text-white text-4xl md:text-5xl font-bold">
-            ループBGMスタジオ
-          </h1>
-        </div>
-        <p class="text-white text-md font-medium leading-loose">
-          作曲も合成もブラウザの中だけで完結して、そのままゲームに入れられる音源を書き出せるアプリケーション。
-        </p>
-      </div>
-    </div>
-  </div>
-
-  <hr />
-
-  <!-- スタジオ本体 -->
-  <div class={`${container} py-8 md:py-16 flex flex-col gap-5`}>
-    <!-- 再生 -->
-    <section class={deck}>
-      <div
-        class="relative overflow-hidden rounded-xl border border-zinc-700 bg-zinc-950/60"
-      >
-        <canvas
-          id="roll"
-          width="1400"
-          height="420"
-          class="block h-[210px] w-full"
-          aria-label="演奏中のノートの流れ"></canvas>
-        <div
-          class="pointer-events-none absolute left-4 top-3 flex items-baseline gap-3"
-        >
-          <span id="chordname" class="text-3xl font-black leading-none text-white"
-          ></span>
-          <span id="barcount" class="text-sm tabular-nums text-neutral-400"
-          ></span>
-        </div>
-        <div
-          id="hint"
-          class="absolute inset-0 grid place-items-center bg-zinc-950/75 px-6 text-center text-sm leading-loose text-neutral-300"
-        >
-          再生ボタンを押すと、その場で曲を作成できます
-        </div>
-      </div>
-      <div class="flex flex-wrap items-center gap-3 md:gap-4">
-        <button
-          id="play"
-          type="button"
-          aria-label="再生"
-          class="grid h-[74px] w-[74px] flex-none place-items-center rounded-full bg-[#FE5F55] text-white shadow-[0_6px_0_-1px_#a33a33] transition active:translate-y-1 active:shadow-[0_2px_0_-1px_#a33a33] disabled:cursor-wait disabled:bg-zinc-600 disabled:shadow-none"
-        >
-          <svg
-            id="iconPlay"
-            viewBox="0 0 24 24"
-            class="h-8 w-8 fill-current"
-            aria-hidden="true"><path d="M7 4.5v15l13-7.5z"></path></svg
-          >
-          <svg
-            id="iconPause"
-            viewBox="0 0 24 24"
-            class="hidden h-8 w-8 fill-current"
-            aria-hidden="true"
-            ><rect x="6" y="4.5" width="4.2" height="15" rx="1"></rect><rect
-              x="13.8"
-              y="4.5"
-              width="4.2"
-              height="15"
-              rx="1"></rect></svg
-          >
-        </button>
-        <button id="dice" type="button" class={`${ghost} px-5 py-3 text-base`}>
-          ランダム生成
-        </button>
-        <button id="reroll" type="button" class={ghost}>
-          メロディだけ再生成
-        </button>
-        <div
-          class="grid w-full grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1 sm:ml-auto sm:w-56"
-          title="この画面で聴くときだけの音量。書き出される音源のレベルには影響しない"
-        >
-          <label for={volKnob.id} class={label}>{volKnob.label}</label>
-          <output data-knob-out={volKnob.id} class={output}></output>
-          <input
-            type="range"
-            id={volKnob.id}
-            data-knob={volKnob.id}
-            min={volKnob.min ?? 0}
-            max={volKnob.max ?? 100}
-            step="1"
-            class={`${range} col-span-2`}
-          />
-        </div>
-      </div>
-    </section>
-
-    <section class={deck}>
-      <h2 class={heading}>
-        曲調<span class={note}>コード進行・拍子・テンポ・編成のひな型</span>
-      </h2>
-      <div
-        id="moods"
-        class="grid grid-cols-[repeat(auto-fill,minmax(158px,1fr))] gap-2.5"
-      >
-        {
-          Object.entries(PRESETS).map(([k, p]) => (
-            <button
-              type="button"
-              data-k={k}
-              aria-pressed="false"
-              class="group rounded-xl border border-zinc-700 bg-zinc-800/60 px-3.5 py-3 text-left leading-snug transition hover:border-zinc-500 aria-pressed:border-[#FE5F55] aria-pressed:bg-[#FE5F55]/15"
-            >
-              <b class="block text-base font-black text-white">{p.label}</b>
-              <i class="mt-0.5 block text-[11px] not-italic tabular-nums text-neutral-400 group-aria-pressed:text-neutral-200">
-                {p.beats}拍子 · {p.bpm} BPM{p.swing ? " · はねる" : ""}
-              </i>
-              <span class="mt-1 block text-xs text-neutral-400 group-aria-pressed:text-neutral-200">
-                {p.desc}
-              </span>
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" href="/apps/loop-bgm-studio/icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top">
+        <a class="brand" href="/apps" title="アプリ一覧へ">
+          <img src="/apps/loop-bgm-studio/logo.svg" alt="LOOP BGM STUDIO" width="218" height="89" />
+        </a>
+        <div class="files">
+          <button id="btnLoad" type="button" class="hw icon" aria-label="JSONを読み込む" title="JSONを読み込む（ドラッグ&ドロップでも）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M3 21C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H10.4142L12.4142 5H20C20.5523 5 21 5.44772 21 6V9H19V7H11.5858L9.58579 5H4V16.998L5.5 11H22.5L20.1894 20.2425C20.0781 20.6877 19.6781 21 19.2192 21H3ZM19.9384 13H7.06155L5.56155 19H18.4384L19.9384 13Z"/></svg>
+          </button>
+          <div class="menuwrap">
+            <button id="btnSave" type="button" class="hw icon" aria-label="保存・書き出し" aria-haspopup="true" aria-expanded="false" title="保存・書き出し">
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M18 19H19V6.82843L17.1716 5H16V9H7V5H5V19H6V12H18V19ZM4 3H18L20.7071 5.70711C20.8946 5.89464 21 6.149 21 6.41421V20C21 20.5523 20.5523 21 20 21H4C3.44772 21 3 20.5523 3 20V4C3 3.44772 3.44772 3 4 3ZM8 14V19H16V14H8Z"/></svg>
             </button>
-          ))
-        }
-      </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div class="grid gap-1.5">
-          <label for="selKey" class={label}>キー（移調）</label>
-          <select id="selKey" class={select}>
-            {
-              KEY_NAMES.map((name, i) => (
-                <option value={String(i)}>
-                  {name}
-                  {i ? `（+${i}）` : "（原調）"}
-                </option>
-              ))
-            }
-          </select>
-        </div>
-        <div class="grid gap-1.5">
-          <label for="selScale" class={label}>メロディの音階</label>
-          <select id="selScale" class={select}>
-            {
-              Object.entries(SCALES).map(([k, v]) => (
-                <option value={k}>{v.name}</option>
-              ))
-            }
-          </select>
-        </div>
-      </div>
-      <p id="scaleNote" class={status}></p>
-    </section>
-
-    <!-- 音色 -->
-    <section class={deck}>
-      <h2 class={heading}>
-        音色<span class={note}>パートごとに、楽器・鳴らすかどうか・音量</span>
-      </h2>
-      <div class="grid gap-2.5">
-        {
-          PARTS.map((part) => (
-            <div
-              data-part={part.key}
-              data-off="false"
-              class="group/part grid grid-cols-[1fr_1fr_42px] items-center gap-x-2.5 gap-y-2 rounded-xl border border-zinc-700 bg-zinc-800/60 px-3 py-2.5 [grid-template-areas:'n_n_n'_'s_s_k'_'v_v_o'] sm:grid-cols-[5em_minmax(150px,1fr)_42px_minmax(120px,1.3fr)_2.4em] sm:gap-3 sm:[grid-template-areas:'n_s_k_v_o']"
-            >
-              <label
-                for={part.selId}
-                class="[grid-area:n] text-sm font-black text-white group-data-[off=true]/part:text-neutral-500"
-              >
-                {part.name}
-              </label>
-              <select
-                id={part.selId}
-                class={`${select} [grid-area:s] bg-zinc-900 group-data-[off=true]/part:opacity-40`}
-              >
-                {Object.entries(tables[part.table]).map(([k, v]) => (
-                  <option value={k}>{v.name}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                data-spk={part.key}
-                aria-pressed="true"
-                class="group/spk [grid-area:k] grid h-[42px] w-[42px] place-items-center rounded-full border border-zinc-600 bg-zinc-900 text-neutral-400 transition aria-pressed:border-[#3fcbaf] aria-pressed:bg-[#3fcbaf] aria-pressed:text-white"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                  class="hidden h-6 w-6 group-aria-pressed/spk:block"
-                >
-                  <path
-                    d="M3.5 9.5v5h3.8l4.7 4V5.5l-4.7 4z"
-                    fill="currentColor"
-                    stroke="none"
-                  />
-                  <path d="M15.5 9.2a4 4 0 0 1 0 5.6" />
-                  <path d="M18.3 6.6a7.6 7.6 0 0 1 0 10.8" />
-                </svg>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                  class="h-6 w-6 group-aria-pressed/spk:hidden"
-                >
-                  <path
-                    d="M3.5 9.5v5h3.8l4.7 4V5.5l-4.7 4z"
-                    fill="currentColor"
-                    stroke="none"
-                  />
-                  <path d="M16 9.5l5 5M21 9.5l-5 5" />
-                </svg>
-              </button>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                step="1"
-                data-pvol={part.key}
-                aria-label={`${part.name}の音量`}
-                class={`${range} [grid-area:v] group-data-[off=true]/part:opacity-40`}
-              />
-              <output
-                data-pout={part.key}
-                class={`${output} [grid-area:o] text-right group-data-[off=true]/part:opacity-40`}
-              />
+            <div id="saveMenu" class="menu" hidden>
+              <button type="button" data-exp="json"><b>JSONで保存</b><span>あとで読み込んで続きから編集できる（⌘S）</span></button>
+              <hr />
+              <button type="button" data-exp="mid"><b>MIDI</b><span>トラックごとに分かれた標準MIDI</span></button>
+              <button type="button" data-exp="wav"><b>WAV</b><span>継ぎ目なくループする音源</span></button>
+              <button type="button" data-exp="pcm"><b>CAF・無劣化</b><span>iOS / macOS のゲーム向け</span></button>
+              <button type="button" data-exp="ima4"><b>CAF・軽量</b><span>IMA4。容量1/4</span></button>
             </div>
-          ))
-        }
-      </div>
-    </section>
-
-    {
-      ["melody", "arrange", "mix"].map((sec) => (
-        <section class={deck}>
-          <h2 class={heading}>
-            {SECTIONS[sec].title}
-            {SECTIONS[sec].note && (
-              <span class={note}>{SECTIONS[sec].note}</span>
-            )}
-          </h2>
-          <div class="grid grid-cols-[repeat(auto-fit,minmax(215px,1fr))] gap-x-6 gap-y-3.5">
-            {knobsIn(sec).map((knob) => (
-              <div class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1">
-                <label for={knob.id} class={label}>
-                  {knob.label}
-                </label>
-                <output data-knob-out={knob.id} class={output} />
-                <input
-                  type="range"
-                  id={knob.id}
-                  data-knob={knob.id}
-                  min={knob.min ?? 0}
-                  max={knob.max ?? 100}
-                  step="1"
-                  class={`${range} col-span-2`}
-                />
-              </div>
-            ))}
           </div>
-          {segsIn(sec).map((sg) => (
-            <div class={row}>
-              <span class={rowLabel}>{sg.label}</span>
-              <div
-                data-seg={sg.name}
-                class={`${segCls} ${sg.options.length === 3 ? "grid-cols-3" : ""}`}
-              >
-                {sg.options.map(([, text], i) => (
-                  <button type="button" data-i={i} class={segBtn}>
-                    {text}
-                  </button>
-                ))}
-              </div>
-              {sg.info && <span id={sg.info} class={status} />}
-            </div>
-          ))}
-          {chipsIn(sec).map((c) => (
-            <div class={row}>
-              <span class={rowLabel}>{c.label}</span>
-              <div class="flex flex-wrap gap-2">
-                {c.items.map(([path, text]) => (
-                  <button type="button" data-chip={path} class={chip}>
-                    {text}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-          {knobsIn(sec).some((k) => k.help) && (
-            <ul class="flex flex-col gap-1 text-xs leading-relaxed text-neutral-400">
-              {knobsIn(sec)
-                .filter((k) => k.help)
-                .map((k) => (
-                  <li>
-                    <b class="font-bold text-neutral-200">{k.label}</b>：{k.help}
-                  </li>
-                ))}
-              {SECTIONS[sec].foot && <li>{SECTIONS[sec].foot}</li>}
-            </ul>
-          )}
-        </section>
-      ))
-    }
+          <input id="fileIn" type="file" accept=".json,application/json" hidden />
+          <div class="undo" role="group" aria-label="取り消し">
+            <button id="btnUndo" type="button" class="hw icon" aria-label="取り消す（⌘Z）" title="取り消す（⌘Z）"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M5.82843 6.99955L8.36396 9.53509L6.94975 10.9493L2 5.99955L6.94975 1.0498L8.36396 2.46402L5.82843 4.99955H13C17.4183 4.99955 21 8.58127 21 12.9996C21 17.4178 17.4183 20.9996 13 20.9996H4V18.9996H13C16.3137 18.9996 19 16.3133 19 12.9996C19 9.68584 16.3137 6.99955 13 6.99955H5.82843Z"/></svg></button>
+            <button id="btnRedo" type="button" class="hw icon" aria-label="やり直す（⇧⌘Z）" title="やり直す（⇧⌘Z）"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M18.1716 6.99955H11C7.68629 6.99955 5 9.68584 5 12.9996C5 16.3133 7.68629 18.9996 11 18.9996H20V20.9996H11C6.58172 20.9996 3 17.4178 3 12.9996C3 8.58127 6.58172 4.99955 11 4.99955H18.1716L15.636 2.46402L17.0503 1.0498L22 5.99955L17.0503 10.9493L15.636 9.53509L18.1716 6.99955Z"/></svg></button>
+          </div>
+        </div>
+        <div class="top-r">
+          <button id="btnConfig" type="button" class="hw icon" aria-label="設定" title="設定"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M3.33946 17.0002C2.90721 16.2515 2.58277 15.4702 2.36133 14.6741C3.3338 14.1779 3.99972 13.1668 3.99972 12.0002C3.99972 10.8345 3.3348 9.824 2.36353 9.32741C2.81025 7.71651 3.65857 6.21627 4.86474 4.99001C5.7807 5.58416 6.98935 5.65534 7.99972 5.072C9.01009 4.48866 9.55277 3.40635 9.4962 2.31604C11.1613 1.8846 12.8847 1.90004 14.5031 2.31862C14.4475 3.40806 14.9901 4.48912 15.9997 5.072C17.0101 5.65532 18.2187 5.58416 19.1346 4.99007C19.7133 5.57986 20.2277 6.25151 20.66 7.00021C21.0922 7.7489 21.4167 8.53025 21.6381 9.32628C20.6656 9.82247 19.9997 10.8336 19.9997 12.0002C19.9997 13.166 20.6646 14.1764 21.6359 14.673C21.1892 16.2839 20.3409 17.7841 19.1347 19.0104C18.2187 18.4163 17.0101 18.3451 15.9997 18.9284C14.9893 19.5117 14.4467 20.5941 14.5032 21.6844C12.8382 22.1158 11.1148 22.1004 9.49633 21.6818C9.55191 20.5923 9.00929 19.5113 7.99972 18.9284C6.98938 18.3451 5.78079 18.4162 4.86484 19.0103C4.28617 18.4205 3.77172 17.7489 3.33946 17.0002ZM8.99972 17.1964C10.0911 17.8265 10.8749 18.8227 11.2503 19.9659C11.7486 20.0133 12.2502 20.014 12.7486 19.9675C13.1238 18.8237 13.9078 17.8268 14.9997 17.1964C16.0916 16.5659 17.347 16.3855 18.5252 16.6324C18.8146 16.224 19.0648 15.7892 19.2729 15.334C18.4706 14.4373 17.9997 13.2604 17.9997 12.0002C17.9997 10.74 18.4706 9.5632 19.2729 8.6665C19.1688 8.4405 19.0538 8.21822 18.9279 8.00021C18.802 7.78219 18.667 7.57148 18.5233 7.36842C17.3457 7.61476 16.0911 7.43414 14.9997 6.80405C13.9083 6.17395 13.1246 5.17768 12.7491 4.03455C12.2509 3.98714 11.7492 3.98646 11.2509 4.03292C10.8756 5.17671 10.0916 6.17364 8.99972 6.80405C7.9078 7.43447 6.65245 7.61494 5.47428 7.36803C5.18485 7.77641 4.93463 8.21117 4.72656 8.66637C5.52881 9.56311 5.99972 10.74 5.99972 12.0002C5.99972 13.2604 5.52883 14.4372 4.72656 15.3339C4.83067 15.5599 4.94564 15.7822 5.07152 16.0002C5.19739 16.2182 5.3324 16.4289 5.47612 16.632C6.65377 16.3857 7.90838 16.5663 8.99972 17.1964ZM11.9997 15.0002C10.3429 15.0002 8.99972 13.6571 8.99972 12.0002C8.99972 10.3434 10.3429 9.00021 11.9997 9.00021C13.6566 9.00021 14.9997 10.3434 14.9997 12.0002C14.9997 13.6571 13.6566 15.0002 11.9997 15.0002ZM11.9997 13.0002C12.552 13.0002 12.9997 12.5525 12.9997 12.0002C12.9997 11.4479 12.552 11.0002 11.9997 11.0002C11.4474 11.0002 10.9997 11.4479 10.9997 12.0002C10.9997 12.5525 11.4474 13.0002 11.9997 13.0002Z"/></svg></button>
+          <button id="btnHelp" type="button" class="hw icon" aria-label="操作のしかた" title="操作のしかた"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20ZM11 15H13V17H11V15ZM13 13.3551V14H11V12.5C11 11.9477 11.4477 11.5 12 11.5C12.8284 11.5 13.5 10.8284 13.5 10C13.5 9.17157 12.8284 8.5 12 8.5C11.2723 8.5 10.6656 9.01823 10.5288 9.70577L8.56731 9.31346C8.88637 7.70919 10.302 6.5 12 6.5C13.933 6.5 15.5 8.067 15.5 10C15.5 11.5855 14.4457 12.9248 13 13.3551Z"/></svg></button>
+          <label class="vol">
+            <span>モニター音量</span><output id="volOut">72</output>
+            <input id="vol" type="range" min="0" max="100" />
+          </label>
+        </div>
+      </header>
 
-    <!-- レシピコード -->
-    <section class={deck}>
-      <h2 class={heading}>
-        レシピコード<span class={note}>この1行で、いまの設定がまるごと戻る</span>
-      </h2>
-      <div class="flex flex-wrap items-center gap-2.5">
-        <input
-          id="codeIn"
-          spellcheck="false"
-          autocomplete="off"
-          aria-label="レシピコード"
-          class="min-w-0 flex-[1_1_340px] rounded-xl border border-zinc-600 bg-zinc-800 px-3.5 py-2.5 font-mono text-sm tracking-wider text-white focus:border-[#FE5F55] focus:outline-none"
-        />
-        <button id="codeApply" type="button" class={ghost}>読み込む</button>
-        <button id="codeCopy" type="button" class={ghost}>コピー</button>
+      <div class="strip">
+        <div class="hud">
+          <span id="hudChord" class="hud-i hud-chord" hidden><em>CHORD</em><b id="chordName">—</b></span>
+          <span class="hud-i hud-bar"><em>BAR</em><b id="barCount"></b></span>
+          <span class="hud-i hud-bpm" title="上下にドラッグでテンポを変える（⇧で細かく・ホイールでも）"><em>BPM</em><b id="hudBpm"></b><i class="hud-ud" aria-hidden="true"></i></span>
+          <span class="hud-i hud-key"><em>KEY</em><b id="hudKey"></b></span>
+          <span class="hud-i hud-len"><em>LOOP</em><b id="hudLen"></b></span>
+        </div>
+        <span class="grow"></span>
+        <button id="btnCompact" type="button" class="tog drum-only" aria-pressed="true" title="使っている楽器の行だけ出す">使う行だけ</button>
+        <label class="f"><span id="gridLabel">グリッド</span><select id="grid"><option value="2">1/4</option><option value="1" selected>1/8</option><option value="0.5">1/16</option><option value="0.25">1/32</option></select></label>
+        <label class="f pitched-only" title="鍵盤1つぶんの高さ（⌥+ホイールでも）"><span>縦の幅</span><input id="rowZoom" type="range" min="3" max="22" step="1" /></label>
+        <label class="f pitched-only" title="8分音符1つぶんの幅（⌘+ホイールでも）"><span>横の幅</span></label>
+        <div class="zoom pitched-only" role="group" aria-label="表示の拡大">
+          <button id="zoomOut" type="button" aria-label="縮小">−</button>
+          <button id="zoomFit" type="button" aria-label="全体を表示">全体</button>
+          <button id="zoomIn" type="button" aria-label="拡大">＋</button>
+        </div>
       </div>
-      <p id="codeStatus" class={status}>
-        書き出したファイル名の末尾にも同じコードが入るから、あとから音源だけ見つけても完全に復元できる。
-      </p>
-    </section>
 
-    <!-- 書き出し -->
-    <section class={deck}>
-      <h2 class={heading}>書き出し</h2>
-      {
-        segsIn("export").map((sg) => (
-          <>
-            <div
-              id={sg.row}
-              class={sg.row ? `${row} transition-opacity ${disabledRow}` : row}
-            >
-              <span class={rowLabel}>{sg.label}</span>
-              <div data-seg={sg.name} class={segCls}>
-                {sg.options.map(([, text], i) => (
-                  <button type="button" data-i={i} class={segBtn}>
-                    {text}
-                  </button>
-                ))}
-              </div>
-              {sg.info && <span id={sg.info} class={status} />}
-            </div>
-            {sg.name === "fmt" && <p id="fmtNote" class={status} />}
-          </>
-        ))
-      }
-      <div class={`${row} mt-1`}>
-        <button
-          id="export"
-          type="button"
-          class="rounded-full bg-white px-6 py-3.5 text-base font-black text-zinc-900 transition hover:bg-[#FE5F55] hover:text-white disabled:cursor-not-allowed disabled:bg-zinc-600 disabled:text-neutral-400"
-        >
-          書き出す
+      <div id="rollWrap" class="roll"><canvas id="roll" aria-label="ピアノロール"></canvas></div>
+
+      <div class="under deck">
+        <div class="genbox">
+          <div class="gen">
+            <button id="btnGenre" type="button" class="hw taupe">ジャンル選択</button>
+            <button id="btnDice" type="button" class="hw taupe" title="ジャンルをおまかせで切り替える（テンポはそのまま）">おまかせ</button>
+            <button id="btnSong" type="button" class="hw taupe" title="テンポ・キー・スウィング・マスタートーン・ループ長">曲の設定</button>
+          </div>
+          <span class="genre-now">いまの曲調：<b id="genreName"></b></span>
+        </div>
+        <div class="tp-l" role="group" aria-label="戻る">
+          <button id="toStart" type="button" class="hw big-sub" aria-label="先頭に戻る" title="先頭に戻る（Enter）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M8 11.3333L18.2227 4.51823C18.4524 4.36506 18.7628 4.42714 18.916 4.65691C18.9708 4.73904 19 4.83555 19 4.93426V19.0657C19 19.3419 18.7761 19.5657 18.5 19.5657C18.4013 19.5657 18.3048 19.5365 18.2227 19.4818L8 12.6667V19C8 19.5523 7.55228 20 7 20C6.44772 20 6 19.5523 6 19V5C6 4.44772 6.44772 4 7 4C7.55228 4 8 4.44772 8 5V11.3333Z"/></svg>
+          </button>
+          <button id="backBars" type="button" class="hw big-sub" aria-label="4小節戻る" title="4小節ぶん戻る（4小節のまとまりの頭へ。頭のすぐ後なら、もう1つ前へ）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 10.6667L21.2227 4.51823C21.4524 4.36506 21.7629 4.42714 21.9161 4.65691C21.9708 4.73904 22 4.83554 22 4.93426V19.0657C22 19.3419 21.7762 19.5657 21.5 19.5657C21.4013 19.5657 21.3048 19.5365 21.2227 19.4818L12 13.3333V19.0657C12 19.3419 11.7762 19.5657 11.5 19.5657C11.4013 19.5657 11.3048 19.5365 11.2227 19.4818L0.62407 12.416C0.394306 12.2628 0.332219 11.9524 0.485395 11.7226C0.522013 11.6677 0.569144 11.6206 0.62407 11.584L11.2227 4.51823C11.4524 4.36506 11.7629 4.42714 11.9161 4.65691C11.9708 4.73904 12 4.83554 12 4.93426V10.6667Z"/></svg>
+          </button>
+        </div>
+        <button id="playBig" type="button" class="hw big-play" aria-label="再生" title="再生・停止（スペース）">
+          <svg aria-hidden="true" class="i-play" viewBox="0 0 24 24" fill="currentColor"><path d="M19.376 12.4161L8.77735 19.4818C8.54759 19.635 8.23715 19.5729 8.08397 19.3432C8.02922 19.261 8 19.1645 8 19.0658V4.93433C8 4.65818 8.22386 4.43433 8.5 4.43433C8.59871 4.43433 8.69522 4.46355 8.77735 4.5183L19.376 11.584C19.6057 11.7372 19.6678 12.0477 19.5146 12.2774C19.478 12.3323 19.4309 12.3795 19.376 12.4161Z"/></svg>
+          <svg aria-hidden="true" class="i-pause hide" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5H8V19H6V5ZM16 5H18V19H16V5Z"/></svg>
         </button>
-        <p id="exportStatus" class={status}>
-          いま鳴っているのと同じ演奏を保存する。
-        </p>
+        <div class="tp-r">
+          <button id="btnFollow" type="button" class="hw big-sub follow" aria-pressed="true" aria-label="オートスクロール" title="オートスクロール：再生位置を追いかける（F）"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M17.1717 11L12.5148 6.34317L13.929 4.92896L21.0001 12L13.929 19.0711L12.5148 17.6569L17.1716 13L7.9998 13.0002L7.99978 11.0002L17.1717 11ZM3.99985 19L3.99985 4.99997H5.99985V19H3.99985Z"/></svg></button>
+        </div>
+        <div class="brushbox">
+        <div class="brushes" role="group" aria-label="ブラシ">
+          <button type="button" class="tool" data-tool="edit" aria-pressed="true" title="ふつうの編集（V）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M15.7279 9.57627L14.3137 8.16206L5 17.4758V18.89H6.41421L15.7279 9.57627ZM17.1421 8.16206L18.5563 6.74785L17.1421 5.33363L15.7279 6.74785L17.1421 8.16206ZM7.24264 20.89H3V16.6473L16.435 3.21231C16.8256 2.82179 17.4587 2.82179 17.8492 3.21231L20.6777 6.04074C21.0682 6.43126 21.0682 7.06443 20.6777 7.45495L7.24264 20.89Z"/></svg><span>編集</span>
+          </button>
+          <button type="button" class="tool" data-tool="select" aria-pressed="false" title="選択：囲んで選んで、まとめて移動・⌘C / ⌘X / ⌘V（S で切り替え）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M16 13L22.9641 17.0622L19.9913 17.9129L22.116 21.5933L20.384 22.5933L18.2592 18.9129L16.0359 21.0622L16 13ZM14 6H16V8H21C21.5523 8 22 8.44772 22 9V13H20V10H10V20H14V22H9C8.44772 22 8 21.5523 8 21V16H6V14H8V9C8 8.44772 8.44772 8 9 8H14V6ZM4 14V16H2V14H4ZM4 10V12H2V10H4ZM4 6V8H2V6H4ZM4 2V4H2V2H4ZM8 2V4H6V2H8ZM12 2V4H10V2H12ZM16 2V4H14V2H16Z"/></svg><span>選択</span>
+          </button>
+          <button type="button" class="tool" data-tool="arrange" aria-pressed="false" title="アレンジブラシ：選んでいるトラックを、なぞった所だけ書き換える。線の高さが音程の目安（B で切り替え）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M4.7134 7.12811L4.46682 7.69379C4.28637 8.10792 3.71357 8.10792 3.53312 7.69379L3.28656 7.12811C2.84706 6.11947 2.05545 5.31641 1.06767 4.87708L0.308047 4.53922C-0.102682 4.35653 -0.102682 3.75881 0.308047 3.57612L1.0252 3.25714C2.03838 2.80651 2.84417 1.97373 3.27612 0.930828L3.52932 0.319534C3.70578 -0.106511 4.29417 -0.106511 4.47063 0.319534L4.72382 0.930828C5.15577 1.97373 5.96158 2.80651 6.9748 3.25714L7.69188 3.57612C8.10271 3.75881 8.10271 4.35653 7.69188 4.53922L6.93228 4.87708C5.94451 5.31641 5.15288 6.11947 4.7134 7.12811ZM18.2278 2.3713L13.2886 6.21289C9.34224 5.23923 5.55843 7.54646 4.5 11.4966C4.39826 11.8763 4.36647 12.262 4.33317 12.666C4.21829 14.0599 4.08554 15.6707 1 17.9966C3.5 19.4966 8 20.9984 11.5016 20.9984C14.8142 20.9984 17.8463 18.7896 18.7444 15.4377C19.0836 14.1719 19.0778 12.895 18.7847 11.7067L22.6253 6.76879C22.9349 6.3707 22.8997 5.80435 22.543 5.44774L19.5488 2.45355C19.1922 2.09694 18.6259 2.06168 18.2278 2.3713ZM16.8952 8.2852C16.8319 8.21952 16.7673 8.15494 16.7015 8.09149L15.5769 6.96685L18.7589 4.49198L20.5046 6.23774L18.0297 9.41972L16.8952 8.2852Z"/></svg><span>アレンジブラシ</span>
+          </button>
+          <!-- ハネのブラシはいまは非表示。使うときは hidden を外し、editor.js の SHOWN_TOOLS に 'hane' を戻す -->
+          <button type="button" class="tool" data-tool="hane" aria-pressed="false" hidden title="塗った所を跳ねさせる。重ねるほど強く、⌥でまっすぐに">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M2 9H4V21H2V9ZM8 3H10V21H8V3ZM14 12H16V21H14V12ZM20 6H22V21H20V6Z"/></svg><span>ハネ</span>
+          </button>
+        </div>
+        <label class="f bsize" title="ブラシの太さ（[ ]）"><span>ブラシの太さ</span><input id="brushSize" type="range" min="6" max="48" /></label>
+        </div>
       </div>
-    </section>
-  </div>
+      <div class="under under2">
+        <div id="pageBar" class="pagebar drum-only">
+          <span class="pair">
+            <button id="pgPrev" type="button" aria-label="前のページ" title="前のページ（←）">◀</button>
+            <b id="pageLabel"></b>
+            <button id="pgNext" type="button" aria-label="次のページ" title="次のページ（→）">▶</button>
+          </span>
+          <label class="f"><span>表示</span><select id="pageBars"><option value="1">1小節</option><option value="2">2小節</option><option value="4">4小節</option></select></label>
+          <span class="pair">
+            <button id="pgCopy" type="button" title="このページをコピー（⌘C）">コピー</button>
+            <button id="pgPaste" type="button" title="このページに貼り付け（⌘V）">貼り付け</button>
+            <button id="pgRepeat" type="button" title="このページを曲の最後までくり返す（R）">最後までくり返す</button>
+            <button id="pgClear" type="button" title="このページを空にする">空にする</button>
+          </span>
+        </div>
+        <div id="selBar" class="selbar pitched-only" data-on="false">
+          <span id="selCount"></span>
+          <span class="selops">
+            <label class="f"><span>ベロシティ</span><input id="selVel" type="range" min="5" max="100" /><output id="selVelOut"></output></label>
+            <span id="selOct" class="pair"><button id="selOctDown" type="button" title="1オクターブ下げる（⇧↓）">−8va</button><button id="selOctUp" type="button" title="1オクターブ上げる（⇧↑）">+8va</button></span>
+            <button id="selQuant" type="button" title="グリッドにそろえる（Q）">クオンタイズ</button>
+            <button id="selDup" type="button" title="すぐ後ろに複製（⌘D）">複製</button>
+            <button id="selRepeat" type="button" title="選んだ小節ぶんを曲の最後までくり返す（R）">最後までくり返す</button>
+            <button id="selDel" type="button" title="削除（Delete）">削除</button>
+          </span>
+        </div>
+      </div>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
 
-  <hr />
+      <section id="tracks" class="tracks" aria-label="トラック"></section>
 
-  <!-- メモ -->
-  <div class={`${container} py-8 md:py-16`}>
-    <div class="prose prose-invert max-w-none">
-      <h2>メモ</h2>
-      <ul class="list-disc">
-        <li>
-          <strong>ループのつなぎ目</strong>：残響が末尾で切れないよう、はみ出た分を先頭に折り返してあります。さらに長さを
-          IMA4 のパケット境界（64 フレーム）に合わせてあるので、無限ループしても継ぎ目は出ません。
-        </li>
-        <li>
-          <strong>権利</strong>：鳴っているのは全部その場で生成されたオリジナルです。商用でも自由に使って大丈夫です。
-        </li>
-        <li>
-          音はすべてブラウザの中で合成しています。つくった曲や設定がどこかへ送られることはありません。
-        </li>
-      </ul>
     </div>
-  </div>
-</Layout>
 
-<script>
-  import { startStudio } from "../../scripts/loop-bgm-studio/app.js";
-  // Tone.js は重いので、最初に再生を押したときに読み込む
-  startStudio({ loadTone: () => import("tone") });
-</script>
+    <dialog id="genreDlg" class="dlg">
+      <div class="dlg-head">
+        <h2>ジャンル選択</h2>
+        <button id="dlgClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+      <p class="dlg-note">曲調（コード進行・テンポ・編成）を選ぶと、新しい曲がまるごとできる。今の編集は ⌘Z で戻せる。ミキサーの設定は引き継ぐ。</p>
+      <div class="dlg-row">
+        <label class="f"><span>長さ</span><select id="dlgBars"><option value="16">16小節</option><option value="32">32小節</option><option value="64">64小節</option></select></label>
+        <button id="dlgDice" type="button" class="hw taupe">ぜんぶおまかせ</button>
+        <span class="dlg-note">おまかせはテンポをいまのまま変えない</span>
+      </div>
+      <div id="genreList" class="genres"></div>
+      <details class="more">
+        <summary>その他</summary>
+        <div id="genreMore" class="genres"></div>
+      </details>
+      <div class="dlg-code">
+        <label for="codeIn">レシピコードから作る</label>
+        <div class="dlg-row">
+          <input id="codeIn" spellcheck="false" autocomplete="off" placeholder="1I1MYKBI2-TFC6R2398-…" />
+          <button id="codeApply" type="button" class="hw taupe">作る</button>
+        </div>
+        <p id="codeStatus" class="dlg-note"></p>
+      </div>
+    </dialog>
+
+    <dialog id="helpDlg" class="dlg help-dlg">
+      <div class="dlg-head">
+        <h2>操作のしかた</h2>
+        <button id="helpClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+        <div class="help-grid">
+          <dl>
+            <dt>音を置く</dt><dd>空いた所をクリック（そのまま右へドラッグで長さ）</dd>
+            <dt>動かす</dt><dd>音をドラッグ。右端をつかむと長さ。矢印キーでも（⇧で1オクターブ・1小節）</dd>
+            <dt>けす</dt><dd>ダブルクリック、右クリック、⌥クリック、Delete</dd>
+            <dt>まとめて選ぶ</dt><dd>選択モード（S）で囲む（編集中は⇧ドラッグ）、⇧クリックで足す、⌘A で全部。選んだらつかんでまとめて移動、⌘C / ⌘X / ⌘V。ドラムでも使える</dd>
+          </dl>
+          <dl>
+            <dt>コピー</dt><dd>⌘C → 置きたい所をクリック → ⌘V。⌘D ですぐ後ろに複製</dd>
+            <dt>ドラム</dt><dd>マスを押すと点く・もう一度押すと消える。横になぞると連続で。点いたマスを上下にドラッグで強さ、⇧で強く打つ。右ドラッグで消しゴム。←→でページ送り</dd>
+            <dt>トラック</dt><dd>1〜4 キーか下の行をクリックで、編集するトラックを切り替え</dd>
+            <dt>表示</dt><dd>ホイールで左右、⇧+ホイールで上下にスクロール。⌘+ホイール（ピンチ）で横、⌥+ホイールで縦の拡大。上の数字の帯をクリックで再生位置。F でオートスクロールのオン・オフ</dd>
+            <dt>ベロシティ</dt><dd>いちばん下の帯をなぞると強弱を描ける。ドラムは行の名前をクリックすると、その楽器だけ</dd>
+            <dt>再生</dt><dd>スペースで再生・一時停止、Enter で頭に戻る。⌘Z で取り消し</dd>
+            <dt>アレンジ</dt><dd>アレンジブラシ（B）で、選んでいるトラックのなぞった所だけを書き換える。線の高さが音程の目安。⌥ を押しながらなぞるとリズムも作り直す。ドラムは上をなぞるほど手数が多い</dd>
+            <dt>音色</dt><dd>トラックの行の左のボタンが音色、右がパターン。押すとパネルで選べる。スライダーのアイコンは音作りとパン・リバーブ、ラックのアイコンはエフェクト</dd>
+          </dl>
+        </div>
+        <p class="dlg-note">編集した曲はこのブラウザにも自動で残る（設定で切れる）。別の端末やあとで使うときは保存ボタンの「JSONで保存」で。音はすべてブラウザの中で合成していて、どこにも送られない。</p>
+    </dialog>
+
+    <dialog id="configDlg" class="dlg config-dlg">
+      <div class="dlg-head">
+        <h2>設定</h2>
+        <button id="configClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+      <p class="dlg-note">このブラウザに覚えておく。曲（JSON）には入らない。</p>
+      <div class="cfg">
+        <h3>表示</h3>
+        <label class="cfg-row"><input type="checkbox" data-cfg="hudChord" /><span><b>いまのコードを左上に出す</b><small>再生中、鳴っている和音の名前をリアルタイムで出す</small></span></label>
+        <label class="cfg-row"><input type="checkbox" data-cfg="rulerChord" /><span><b>小節の目盛りにコード名を出す</b><small>ピアノロールの上の帯</small></span></label>
+        <label class="cfg-row"><input type="checkbox" data-cfg="dotFont" /><span><b>ドットのフォント（DotGothic16）</b><small>試し中。切るといつものフォントに戻る</small></span></label>
+        <h3>再生・編集</h3>
+        <label class="cfg-row"><input type="checkbox" data-cfg="follow" /><span><b>オートスクロール</b><small>再生位置を追いかける（F）</small></span></label>
+        <label class="cfg-row"><input type="checkbox" data-cfg="compact" /><span><b>ドラムは使っている行だけ出す</b><small>キック・スネア・ハットは空でも出す</small></span></label>
+        <h3>保存</h3>
+        <label class="cfg-row"><input type="checkbox" data-cfg="autosave" /><span><b>ブラウザに自動で残す</b><small>切ると、いま残っている曲も消す。次に開いたときは新しい曲から</small></span></label>
+      </div>
+    </dialog>
+
+    <dialog id="songDlg" class="dlg song-dlg">
+      <div class="dlg-head">
+        <h2>曲の設定</h2>
+        <button id="songClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+      <p class="dlg-note">動かすとすぐ反映される。キーを変えると全部の音をずらし、ループ長を伸ばすと今の内容をくり返す（⌘Z で戻せる）。</p>
+      <div class="song-grid">
+        <label class="sf"><span>テンポ</span><input id="bpm" type="number" min="52" max="176" step="1" /><em>BPM</em></label>
+        <label class="sf"><span>キー</span><select id="key"></select></label>
+        <label class="sf" title="裏拍を後ろにずらして跳ねさせる"><span>スウィング</span><input id="swing" type="range" min="0" max="100" /><output id="swingOut"></output></label>
+        <label class="sf" title="全体の高域のこもり具合（マスターのローパス）。左ほどまるく"><span>マスタートーン</span><input id="tone" type="range" min="0" max="100" /><output id="toneOut"></output></label>
+        <label class="sf"><span>ループ長</span><select id="bars"><option value="16">16小節</option><option value="32">32小節</option><option value="64">64小節</option></select><output id="lenInfo"></output></label>
+      </div>
+    </dialog>
+
+    <dialog id="pickDlg" class="dlg pick-dlg">
+      <div class="dlg-head">
+        <h2 id="pickTitle">音色</h2>
+        <button id="pickClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+      <p id="pickNote" class="dlg-note"></p>
+      <div id="pickBody"></div>
+    </dialog>
+
+    <dialog id="fxDlg" class="dlg fx-dlg">
+      <div class="dlg-head">
+        <h2 id="fxTitle">エフェクト</h2>
+        <button id="fxClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+      <p class="dlg-note">上から順にかかる（インサート）。見出しをドラッグして順番を入れ替え、丸いボタンでオン・オフ。つまみはダブルクリックで初期値。</p>
+      <div class="fx-flow"><span>音源</span><i></i><b>エフェクト</b><i></i><span>ボリューム・パン</span><i></i><span>センド → 共通リバーブ</span></div>
+      <div id="fxRack" class="rack"></div>
+      <div id="fxAdd" class="fx-add"></div>
+      <div class="fx-send">
+        <h3>センド（共通リバーブ）</h3>
+        <p class="dlg-note">リバーブは全トラックで1台を共有していて、各トラックから送る量だけを決める（トラックの行の「リバーブ」と同じ）。ディケイは全トラック共通。</p>
+        <div class="fx-send-row">
+          <label class="knob"><span>このトラックから送る量</span><input id="fxSend" type="range" min="0" max="100" /><output id="fxSendOut"></output></label>
+          <label class="knob"><span>ディケイ（全トラック共通）</span><input id="fxDecay" type="range" min="6" max="60" /><output id="fxDecayOut"></output></label>
+        </div>
+      </div>
+    </dialog>
+
+    <script>
+      import { startEditor } from "../../scripts/loop-bgm-studio/editor/editor.js";
+      // Tone.js は重いので、最初に音を出すときに読み込む
+      startEditor({ loadTone: () => import("tone") });
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #1c1c1c;
+    --panel: #121212;
+    --line: #2c2c2c;
+    --text: #e9e6dc;
+    --muted: #8f8c80;
+    --olive: #9a9d75;
+    --olive-d: #6f7152;
+    --taupe: #8e8173;
+    --taupe-d: #64594d;
+    --red: #ec4a3e;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 13px/1.5 "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  body[data-font="dot"] { font-family: "DotGothic16", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif; }
+  body[data-font="dot"] input, body[data-font="dot"] select, body[data-font="dot"] button { font-family: inherit; }
+  /* DotGothic16 は太字がない。にじんだ太字を作らせない */
+  body[data-font="dot"] * { font-synthesis: none; }
+  body[data-drop="true"] .roll { outline: 2px dashed var(--olive); outline-offset: 4px; }
+  .hide { display: none; }
+  /* display を指定した部品にも hidden を効かせる */
+  [hidden] { display: none !important; }
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+
+  .app { max-width: 1280px; margin: 0 auto; padding: 28px 16px 64px; }
+  @media (min-width: 900px) { .app { padding: 44px 40px 80px; } }
+
+  /* ---- 上の帯 ---- */
+  .top {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto 1fr;
+    align-items: center;
+    gap: 18px;
+    padding: 0 6px 18px;
+  }
+  .brand img { display: block; width: 74px; height: auto; }
+  .files { display: flex; align-items: center; gap: 6px; }
+  .files .undo { display: flex; gap: 6px; margin-left: 8px; }
+  .menuwrap { position: relative; }
+  .top-r { grid-column: 5; justify-self: end; display: flex; align-items: center; gap: 8px; }
+  .top-r .vol { margin-left: 10px; }
+  .hw:disabled { opacity: .4; cursor: default; filter: none; transform: none; }
+  .vol { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; width: min(118px, 100%); font-size: 9px; color: var(--muted); }
+  .vol output { color: var(--text); font-weight: 700; font-size: 10px; }
+  .vol input { grid-column: 1 / -1; }
+  @media (max-width: 640px) {
+    .top { grid-template-columns: auto 1fr; gap: 12px; }
+    .top-r { grid-column: 1 / -1; justify-self: stretch; }
+    .vol { flex: 1; width: auto; }
+  }
+
+  .hw {
+    border: 0;
+    border-radius: 3px;
+    background: var(--olive);
+    color: #f6f4ea;
+    box-shadow: 0 3px 0 var(--olive-d), inset 0 1px 0 rgba(255, 255, 255, .18);
+    transition: transform .06s, box-shadow .06s, filter .15s;
+  }
+  .hw:hover { filter: brightness(1.07); }
+  .hw:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--olive-d); }
+  .hw:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; }
+  .hw.icon { width: 30px; height: 26px; display: grid; place-items: center; }
+  .hw.icon svg { width: 17px; height: 17px; }
+  .hw.taupe { display: inline-flex; align-items: center; height: 32px; background: var(--taupe); box-shadow: 0 3px 0 var(--taupe-d), inset 0 1px 0 rgba(255, 255, 255, .15); padding: 0 11px; font-weight: 600; font-size: 12.5px; }
+  .hw.taupe:active { box-shadow: 0 1px 0 var(--taupe-d); }
+
+  .menu {
+    position: absolute; z-index: 20; top: calc(100% + 10px); left: 0;
+    width: 250px; padding: 6px;
+    background: #232323; border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .5);
+  }
+  .menu button {
+    display: block; width: 100%; text-align: left; padding: 8px 10px;
+    background: none; border: 0; border-radius: 6px;
+  }
+  .menu button:hover, .menu button:focus-visible { background: #2f2f2f; outline: none; }
+  .menu b { display: block; font-size: 13px; }
+  .menu span { display: block; font-size: 11px; color: var(--muted); }
+  .menu hr { border: 0; border-top: 1px solid var(--line); margin: 5px 4px; }
+
+  /* スライダーはブラウザ任せにせず、全部同じ見た目にする（色の明るさで溝が白くなるのを避ける）。
+     色はトラックの色（--c）、トラックの外はグレー。塗る範囲 --a〜--b は editor.js の paintRanges で入れる */
+  input[type="range"] {
+    -webkit-appearance: none; appearance: none; background: transparent; height: 16px; cursor: pointer; margin: 0;
+    --fill: var(--c, #8f8c80);
+    --groove: linear-gradient(to right, #353535 0 var(--a, 0%), var(--fill) var(--a, 0%) var(--b, 0%), #353535 var(--b, 0%) 100%);
+  }
+  input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--groove); }
+  input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--groove); }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border-radius: 50%; border: 0; background: var(--fill); box-shadow: 0 0 0 2px #1c1c1c; }
+  input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; border: 0; background: var(--fill); box-shadow: 0 0 0 2px #1c1c1c; }
+  input[type="range"]:focus-visible { outline: none; }
+  input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 2px #1c1c1c, 0 0 0 4px var(--fill); }
+
+  /* ---- 曲の設定の帯 ---- */
+  .strip {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+    padding: 0 0 10px; color: var(--muted); font-size: 11.5px;
+  }
+  .strip .grow { flex: 1; }
+  /* 左上の表示：どの欄も「小さな見出し＋同じ大きさの値」。値の欄は幅を決めて、中身でずれないようにする */
+  /* 高さは右のグリッド・拡大のつまみ（26px）にそろえる */
+  .hud { display: flex; align-items: stretch; height: 26px; background: #121212; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .hud-i { display: flex; align-items: center; gap: 7px; padding: 0 10px; border-left: 1px solid var(--line); }
+  .hud-i:first-child, .hud-chord[hidden] + .hud-i { border-left: 0; }
+  .hud-i em { font-style: normal; font-size: 9.5px; letter-spacing: .1em; color: var(--muted); }
+  .hud-i b { font-weight: 400; font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+  .hud-chord b { min-width: 4.4em; text-align: left; }
+  .hud-bar b { min-width: 3.4em; }
+  .hud-bpm b { min-width: 2.1em; }
+  /* BPM はつまみ：上下ドラッグで変える */
+  .hud-bpm { cursor: ns-resize; touch-action: none; user-select: none; }
+  .hud-bpm:hover, .hud-bpm[data-drag] { background: #1d1d1a; }
+  .hud-bpm:hover b, .hud-bpm[data-drag] b { color: var(--olive); }
+  .hud-ud { align-self: center; width: 6px; height: 12px; opacity: .55;
+    background: linear-gradient(to bottom right, transparent 50%, var(--muted) 50%) 0 0 / 3px 4px no-repeat,
+                linear-gradient(to bottom left, transparent 50%, var(--muted) 50%) 3px 0 / 3px 4px no-repeat,
+                linear-gradient(to top right, transparent 50%, var(--muted) 50%) 0 8px / 3px 4px no-repeat,
+                linear-gradient(to top left, transparent 50%, var(--muted) 50%) 3px 8px / 3px 4px no-repeat; }
+  .hud-key b { min-width: 1.6em; text-align: left; }
+  .hud-len b { min-width: 1.4em; }
+  .f { display: inline-flex; align-items: center; gap: 6px; }
+  .f output { color: var(--text); font-variant-numeric: tabular-nums; min-width: 2.2em; }
+  .f input[type="range"] { width: 72px; }
+  .f select, .f input[type="number"], .dlg-code input {
+    background: #141414; border: 1px solid var(--line); border-radius: 6px;
+    padding: 3px 6px; color: var(--text);
+  }
+  .f input[type="number"] { width: 58px; }
+  .f select:focus-visible, .f input:focus-visible { outline: 1px solid var(--olive); }
+  body[data-track="drum"] .pitched-only, body:not([data-track="drum"]) .drum-only { display: none !important; }
+  .tog { background: #141414; border: 1px solid var(--line); border-radius: 6px; padding: 3px 10px; color: var(--muted); }
+  .tog[aria-pressed="true"] { background: #2b2c22; border-color: var(--olive); color: var(--text); }
+  .pagebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; color: var(--muted); font-size: 11.5px; }
+  .pagebar .pair { align-items: center; }
+  .pagebar b { color: var(--text); min-width: 8.5em; text-align: center; font-variant-numeric: tabular-nums; }
+  .pagebar button:disabled { opacity: .35; cursor: default; }
+  .zoom { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .zoom button { background: #141414; border: 0; padding: 3px 9px; color: var(--text); min-width: 30px; }
+  .zoom button + button { border-left: 1px solid var(--line); }
+  .zoom button:hover:not(:disabled) { background: #222; }
+  .zoom button:disabled { color: #4a4a4a; cursor: default; }
+
+  /* ---- ピアノロール ---- */
+  .roll {
+    position: relative;
+    height: clamp(300px, 56vh, 620px);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: var(--panel);
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .4);
+  }
+  .roll canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+
+  /* ---- ロールの下 ---- */
+  .under { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 20px; padding: 16px 6px 0; }
+  .brushes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tool {
+    display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+    background: #e9e6dc; color: #2a2a26; border: 0; border-radius: 4px;
+    box-shadow: 0 3px 0 #a9a596; font-weight: 600; font-size: 12px;
+    transition: transform .06s, box-shadow .06s, background .15s;
+  }
+  .tool svg { width: 17px; height: 17px; }
+  .tool:active { transform: translateY(2px); box-shadow: 0 1px 0 #a9a596; }
+  .tool[aria-pressed="true"] { background: #d6cf86; box-shadow: 0 3px 0 #8f8a55, 0 0 0 2px rgba(214, 207, 134, .35); }
+  .tool[data-tool="edit"] { padding: 0 10px; }
+  .brushbox { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+  .bsize { color: var(--muted); font-size: 11.5px; }
+  .bsize input { width: 140px; }
+  @media (max-width: 640px) { .brushbox { align-items: stretch; } .bsize input { flex: 1; } }
+  .under2 { padding-top: 12px; }
+  .gen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .genre-now { color: var(--muted); font-size: 11.5px; }
+  /* 再生ボタンが画面のまん中に来るよう、左右の小さな欄を同じ幅にする */
+  .deck { display: grid; grid-template-columns: minmax(0, 1fr) 150px auto 150px minmax(0, 1fr); grid-template-areas: "gen tpl play tpr brush"; align-items: start; gap: 12px 10px; }
+  .deck .genbox { grid-area: gen; }
+  .deck .tp-l { grid-area: tpl; display: flex; justify-content: flex-end; gap: 8px; }
+  .deck .big-play { grid-area: play; }
+  .deck .tp-r { grid-area: tpr; display: flex; align-items: center; height: 32px; }
+  .deck .brushbox { grid-area: brush; justify-self: end; }
+  .genbox { display: flex; flex-direction: column; gap: 10px; }
+  .hw.big-play { width: 56px; height: 32px; display: grid; place-items: center; }
+  .hw.big-play svg { width: 20px; height: 20px; }
+  .hw.big-sub { width: 40px; height: 32px; display: grid; place-items: center; }
+  .hw.big-sub svg { width: 17px; height: 17px; }
+  /* オートスクロールはオン・オフのボタン。オフのときは色を抜いて、へこんだままにしない */
+  .hw.follow[aria-pressed="false"] { background: #3a3a35; color: #8f8c80; box-shadow: 0 3px 0 #272724, inset 0 1px 0 rgba(255, 255, 255, .06); }
+  .hw.follow[aria-pressed="false"]:active { box-shadow: 0 1px 0 #272724; }
+  @media (max-width: 900px) {
+    .deck { grid-template-columns: 1fr auto 1fr; grid-template-areas: "tpl play tpr" "gen gen gen" "brush brush brush"; }
+    .deck .brushbox { justify-self: stretch; align-items: flex-start; }
+  }
+  .genre-now b { color: var(--text); }
+  .selbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; color: var(--muted); font-size: 11.5px; }
+  .selbar[data-on="false"] .selops { display: none; }
+  .selops { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .selops > button, .pair button {
+    background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; color: var(--text);
+  }
+  .selops > button:hover, .pair button:hover { border-color: var(--olive); }
+  .pair { display: inline-flex; gap: 4px; }
+  .status { min-height: 1.5em; margin: 10px 6px 0; color: var(--muted); font-size: 12px; }
+  .status[data-bad="true"] { color: #ff9b92; }
+
+  /* ---- トラック ---- */
+  .tracks { margin-top: 22px; border-top: 1px solid var(--line); }
+  .trk {
+    display: grid;
+    grid-template-columns: 150px 392px minmax(200px, 340px) 1fr;
+    align-items: center; gap: 10px 22px;
+    padding: 12px 8px; border-bottom: 1px solid var(--line);
+    position: relative;
+  }
+  .trk[data-cur="true"] { background: linear-gradient(90deg, color-mix(in srgb, var(--c) 12%, transparent), transparent 60%); }
+  .trk[data-cur="true"]::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--c); }
+  .trk[data-silent="true"] .trk-name b, .trk[data-silent="true"] .trk-mix { opacity: .45; }
+  .trk-name {
+    display: flex; align-items: center; gap: 9px; background: none; border: 0; padding: 4px 6px; text-align: left;
+  }
+  .trk-name b { font-size: 13.5px; white-space: nowrap; width: 4.6em; }
+  .trk-name kbd { font: 10px ui-monospace, monospace; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+  .trk-name small { color: var(--muted); font-size: 10.5px; margin-left: 4px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .trk-sound { display: grid; grid-template-columns: 170px 150px 30px 30px; gap: 6px; align-items: center; }
+  .trk-btns { justify-self: end; }
+  .pick {
+    display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 10px; min-width: 0;
+    background: #141414; border: 1px solid var(--line); border-radius: 6px; text-align: left;
+  }
+  .pick b { font-weight: 600; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pick:hover { border-color: var(--c); }
+  .fld { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+  .fld select { background: #141414; border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; color: var(--text); max-width: 150px; }
+  .trk-mix { display: grid; grid-template-columns: 1fr; }
+  .knob { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+  .knob input { width: 100%; }
+  .knob output { color: var(--text); font-variant-numeric: tabular-nums; min-width: 2.4em; text-align: right; }
+  .trk-btns { display: flex; gap: 6px; }
+  .adv {
+    display: inline-grid; place-items: center; width: 30px; height: 28px; padding: 0; position: relative;
+    background: #1a1a1a; border: 1px solid var(--line); border-radius: 6px; color: var(--muted);
+  }
+  .adv svg { width: 16px; height: 16px; }
+  .adv:hover, .adv[aria-expanded="true"] { border-color: var(--c); color: var(--text); }
+  .adv[data-on="true"] { color: var(--c); }
+  .adv em { position: absolute; top: -6px; right: -6px; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 8px; background: var(--c); color: #111; font: 700 9.5px/15px system-ui; font-style: normal; }
+  .adv em:empty { display: none; }
+  .trk-adv {
+    grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px 40px;
+    margin: 4px 0 2px; padding: 14px 16px; background: #171717; border: 1px solid var(--line); border-radius: 10px;
+  }
+  .adv-col { display: grid; gap: 8px; align-content: start; }
+  .adv-col h4 { margin: 0 0 2px; font-size: 12px; color: var(--text); white-space: nowrap; }
+  .adv-col h4 small { margin-left: 8px; font-weight: 400; color: var(--muted); font-size: 10.5px; }
+  .adv-col .knob span { min-width: 10em; }
+  .adv-note { margin: 0; color: var(--muted); font-size: 10.5px; }
+  .adv-foot { grid-column: 1 / -1; display: flex; justify-content: flex-end; }
+  .ms {
+    width: 28px; height: 26px; border-radius: 6px; border: 1px solid var(--line); background: #1a1a1a;
+    font-weight: 700; font-size: 11px; color: var(--muted);
+  }
+  .ms[data-act="mute"][aria-pressed="true"] { background: #5a5a52; color: #fff; border-color: #5a5a52; }
+  .ms[data-act="solo"][aria-pressed="true"] { background: var(--olive); color: #fff; border-color: var(--olive); }
+  .regen { border: 1px solid var(--line); background: #1a1a1a; border-radius: 6px; padding: 3px 10px; font-size: 11.5px; }
+  .regen:hover, .ms:hover { border-color: var(--c); }
+  @media (max-width: 980px) {
+    .trk { grid-template-columns: 1fr auto; }
+    .trk-sound, .trk-mix { grid-column: 1 / -1; }
+    .trk-sound { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px 30px; }
+    .trk-btns { grid-row: 1; grid-column: 2; }
+  }
+  @media (max-width: 520px) { .trk-mix { grid-template-columns: 1fr; } }
+
+  /* ---- 操作のしかた・設定 ---- */
+  .help-dlg { width: min(860px, calc(100vw - 32px)); font-size: 12px; color: var(--muted); }
+  .help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 32px; }
+  .help-dlg dl { display: grid; grid-template-columns: 6.5em 1fr; align-content: start; gap: 8px 12px; margin: 14px 0 0; }
+  .help-dlg dt { color: var(--text); }
+  .help-dlg dd { margin: 0; }
+  .help-dlg .dlg-note { margin-top: 18px; }
+  .config-dlg { width: min(520px, calc(100vw - 32px)); }
+  .cfg h3 { margin: 16px 0 6px; font-size: 11px; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .cfg-row { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+  .cfg-row:hover { background: #262626; }
+  .cfg-row input { flex: none; padding: 0; accent-color: var(--olive); margin-top: 3px; width: 15px; height: 15px; }
+  .cfg-row span { display: grid; gap: 1px; }
+  .cfg-row b { font-weight: 600; font-size: 13px; }
+  .cfg-row small { color: var(--muted); font-size: 11px; }
+
+  /* ---- ジャンル選択 ---- */
+  .dlg {
+    width: min(880px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+    background: #1f1f1f; color: var(--text); border: 1px solid var(--line); border-radius: 16px; padding: 22px;
+  }
+  .dlg::backdrop { background: rgba(0, 0, 0, .62); }
+  .dlg-head { display: flex; justify-content: space-between; align-items: center; }
+  .dlg h2 { margin: 0; font-size: 16px; }
+  .x { display: grid; place-items: center; background: none; border: 0; color: var(--muted); padding: 4px; border-radius: 6px; }
+  .x svg { width: 20px; height: 20px; }
+  .x:hover { color: var(--text); background: #2a2a2a; }
+  .dlg-note { color: var(--muted); font-size: 12px; margin: 6px 0 12px; }
+  .dlg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .genres { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin: 16px 0 18px; }
+  .genre {
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left;
+    background: #171717; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  }
+  .genre:hover, .genre:focus-visible { border-color: var(--olive); outline: none; }
+  .genre[aria-pressed="true"] { border-color: var(--olive); background: #22231c; }
+  .genre b { font-size: 13.5px; }
+  .genre em { font-style: normal; font-size: 10.5px; color: var(--muted); }
+  .genre span { grid-column: 1 / -1; font-size: 11px; color: var(--muted); line-height: 1.45; }
+  .more { margin: -6px 0 18px; }
+  .more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  .more .genres { margin: 10px 0 0; }
+  .dlg-row .dlg-note { margin: 0; }
+  .dlg-code label { font-weight: 600; font-size: 12.5px; }
+  .dlg-code .dlg-row { margin-top: 6px; }
+  /* ---- 曲の設定 ---- */
+  .song-dlg { width: min(520px, calc(100vw - 32px)); }
+  .song-grid { display: grid; gap: 12px; margin-top: 8px; }
+  .sf { display: grid; grid-template-columns: 7.5em 1fr 4.5em; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; }
+  .sf select, .sf input[type="number"] { background: #141414; border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; color: var(--text); font-size: 13px; }
+  .sf em { font-style: normal; font-size: 11px; }
+  .sf output { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* ---- 音色・パターンの選択 ---- */
+  .pick-dlg { width: min(960px, calc(100vw - 32px)); }
+  .pick-dlg section h3 { margin: 18px 0 8px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+  .ptile { display: grid; gap: 2px; text-align: left; background: #171717; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .ptile b { font-size: 12.5px; }
+  .ptile span { font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+  .ptile:hover, .ptile:focus-visible { border-color: var(--c); outline: none; }
+  .ptile[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, #171717); }
+
+  /* ---- エフェクト ---- */
+  .fx-dlg { width: min(720px, calc(100vw - 32px)); }
+  .fx-flow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; margin-bottom: 12px; }
+  .fx-flow b { color: var(--text); }
+  .fx-flow i { width: 14px; height: 1px; background: var(--muted); }
+  .rack { display: grid; gap: 8px; }
+  .fx-empty { color: var(--muted); font-size: 12px; padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; margin: 0; }
+  .unit { background: #171717; border: 1px solid var(--line); border-left: 3px solid var(--c); border-radius: 8px; padding: 10px 12px; }
+  .unit[data-on="false"] { border-left-color: var(--line); }
+  .unit[data-on="false"] .unit-body, .unit[data-on="false"] .unit-head b { opacity: .45; }
+  .unit-head { display: flex; align-items: center; gap: 10px; cursor: grab; touch-action: none; user-select: none; }
+  .grip { display: grid; place-items: center; color: var(--muted); margin-left: -4px; }
+  .grip svg { width: 16px; height: 16px; }
+  .unit-head:hover .grip { color: var(--text); }
+  .unit.dragging { position: relative; z-index: 2; cursor: grabbing; box-shadow: 0 12px 30px rgba(0, 0, 0, .55); border-color: var(--c); }
+  .unit.dragging .unit-head { cursor: grabbing; }
+  .unit:not(.dragging) { transition: none; }
+  .unit-head b { font-size: 13px; }
+  .unit-head small { color: var(--muted); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .unit-ops { margin-left: auto; display: flex; gap: 4px; flex: none; }
+  .unit-ops button { display: grid; place-items: center; width: 26px; height: 24px; background: #222; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); padding: 0; }
+  .unit-ops svg { width: 15px; height: 15px; }
+  .unit-ops button:disabled { opacity: .3; cursor: default; }
+  .unit-ops button:hover:not(:disabled) { border-color: var(--c); }
+  .pow { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--muted); background: transparent; padding: 0; flex: none; }
+  .pow[aria-pressed="true"] { border-color: var(--c); background: var(--c); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent); }
+  .unit-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 22px; margin-top: 10px; }
+  .unit-body .knob span { min-width: 6.5em; }
+  .unit-body select, .fx-dlg select { background: #141414; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; color: var(--text); }
+  .fx-add { display: grid; gap: 6px; margin: 14px 0 6px; padding: 12px; background: #191919; border-radius: 10px; }
+  .fx-cat { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .fx-cat span { width: 8.5em; color: var(--muted); font-size: 11px; }
+  .fx-cat button { background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; font-size: 11.5px; }
+  .fx-cat button::before { content: "＋ "; color: var(--muted); }
+  .fx-cat button:hover:not(:disabled) { border-color: var(--c); }
+  .fx-cat button:disabled { opacity: .35; cursor: default; }
+  .fx-send { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .fx-send h3 { margin: 0; font-size: 12.5px; }
+  .fx-send-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; }
+  @media (max-width: 640px) { .fx-send-row { grid-template-columns: 1fr; } .fx-cat span { width: 100%; } }
+  .dlg-code input { flex: 1 1 260px; font: 12.5px ui-monospace, monospace; letter-spacing: .04em; padding: 6px 8px; }
+</style>
