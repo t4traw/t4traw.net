@@ -49,6 +49,8 @@ tools/bgm/
 | アレンジブラシ | 選んでいるトラックを、なぞった所だけ書き換えるブラシ。線の高さが音程の目安 | メロディ変更・ドラマ / `brushLead` `brushChord` `brushBass` `brushDrum` |
 | 曲の設定 | テンポ・キー・スウィング・マスタートーン・ループ長をまとめたモーダル | 以前は上の帯に並べていた |
 
+エディタ版（プロ版）は **PC 専用**として作る（2026-10-07）。スマホでは使う想定がないので、改修のときもスマホ・タッチ操作の確認はしなくていい（崩れていても直さなくていい）。スマホ対応が要るのはふつう版（`/apps/loop-bgm-studio`）だけ。
+
 エディタのアイコンは [Remix Icon](https://remixicon.com/)（Apache-2.0）の SVG を埋め込む。新しく足すときもここから選ぶ（音作り＝sound-module-fill、エフェクト＝server-line、戻す・進む＝arrow-go-back/forward-line、4小節戻る＝rewind-fill など）。
 
 ## コマンド
