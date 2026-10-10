@@ -25,6 +25,12 @@ const description =
           <img src="/apps/loop-bgm-studio/logo.svg" alt="LOOP BGM STUDIO" width="218" height="89" />
         </a>
         <div class="files">
+          <button id="btnNew" type="button" class="hw icon" aria-label="新規作成" title="新規作成（ぜんぶリセットして、ジャンルから作る）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M15 4H5V20H19V8H15V4ZM3 2.9918C3 2.44405 3.44749 2 3.9985 2H16L20.9997 7L21 20.9925C21 21.5489 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5447 3 21.0082V2.9918ZM11 11V8H13V11H16V13H13V16H11V13H8V11H11Z"/></svg>
+          </button>
+          <button id="btnHist" type="button" class="hw icon" aria-label="過去の曲" title="過去の曲（新規作成の前の曲を、このブラウザに自動で残してある）">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12H4C4 16.4183 7.58172 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C9.25022 4 6.82447 5.38734 5.38451 7.50024L8 7.5V9.5H2V3.5H4L3.99989 5.99918C5.82434 3.57075 8.72873 2 12 2ZM13 7L12.9998 11.585L16.2426 14.8284L14.8284 16.2426L10.9998 12.413L11 7H13Z"/></svg>
+          </button>
           <button id="btnLoad" type="button" class="hw icon" aria-label="JSONを読み込む" title="JSONを読み込む（ドラッグ&ドロップでも）">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M3 21C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H10.4142L12.4142 5H20C20.5523 5 21 5.44772 21 6V9H19V7H11.5858L9.58579 5H4V16.998L5.5 11H22.5L20.1894 20.2425C20.0781 20.6877 19.6781 21 19.2192 21H3ZM19.9384 13H7.06155L5.56155 19H18.4384L19.9384 13Z"/></svg>
           </button>
@@ -83,7 +89,6 @@ const description =
         <div class="genbox">
           <div class="gen">
             <button id="btnGenre" type="button" class="hw taupe">ジャンル選択</button>
-            <button id="btnDice" type="button" class="hw taupe" title="ジャンルをおまかせで切り替える（テンポはそのまま）">おまかせ</button>
             <button id="btnSong" type="button" class="hw taupe" title="テンポ・キー・スウィング・マスタートーン・ループ長">曲の設定</button>
           </div>
           <span class="genre-now">いまの曲調：<b id="genreName"></b></span>
@@ -157,15 +162,20 @@ const description =
 
     <dialog id="genreDlg" class="dlg">
       <div class="dlg-head">
-        <h2>ジャンル選択</h2>
+        <h2 id="genreTitle">ジャンル選択</h2>
         <button id="dlgClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
       </div>
-      <p class="dlg-note">曲調（コード進行・テンポ・編成）を選ぶと、新しい曲がまるごとできる。今の編集は ⌘Z で戻せる。ミキサーの設定は引き継ぐ。</p>
+      <p id="genreNote" class="dlg-note">曲調を選ぶと新しい曲がまるごとできる。テンポはいまのまま変えない（変えるなら「曲の設定」、最初からにするなら「新規作成」）。同じ曲調を何回押しても別の演奏になる。ミキサーは引き継ぐ。⌘Z で戻せる。</p>
       <div class="dlg-row">
+        <button id="dlgRandom" type="button" class="hw taupe" title="曲調をランダムに選ぶ（テンポとアレンジはそのまま）">ランダム</button>
+        <label class="f" title="曲調どおりにしないときは、どの曲調もこの拍子で作る。3拍子で使えないドラムは近いものに差し替える"><span>拍子</span><select id="dlgBeats"><option value="auto">曲調どおり</option><option value="4">4/4</option><option value="3">3/4</option></select></label>
         <label class="f"><span>長さ</span><select id="dlgBars"><option value="16">16小節</option><option value="32">32小節</option><option value="64">64小節</option></select></label>
-        <button id="dlgDice" type="button" class="hw taupe">ぜんぶおまかせ</button>
-        <span class="dlg-note">おまかせはテンポをいまのまま変えない</span>
+        <span id="genreStatus" class="dlg-note"></span>
       </div>
+      <details class="arr" open>
+        <summary>アレンジ（どの曲調を選んでも、この設定を効かせて作る）</summary>
+        <div id="genreArr" class="dlg-row arr-row"></div>
+      </details>
       <div id="genreList" class="genres"></div>
       <details class="more">
         <summary>その他</summary>
@@ -179,6 +189,30 @@ const description =
         </div>
         <p id="codeStatus" class="dlg-note"></p>
       </div>
+    </dialog>
+
+    <dialog id="newDlg" class="dlg new-dlg">
+      <div class="dlg-head">
+        <h2>新規作成</h2>
+        <button id="newClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+      <p class="new-msg">すべてリセットされます。よろしいですか？</p>
+      <p class="dlg-note">音符・音色・エフェクト・ミキサー・取り消しの履歴がぜんぶ消えて、ジャンル選択から作り直す。いまの曲は「過去の曲」に自動で残るから、あとで開き直せる（このブラウザだけ）。</p>
+      <div class="new-acts">
+        <button id="newSave" type="button" class="hw taupe">その前にダウンロード（JSON）</button>
+        <span class="grow"></span>
+        <button id="newCancel" type="button" class="hw taupe">キャンセル</button>
+        <button id="newGo" type="button" class="hw taupe new-go">新規作成</button>
+      </div>
+    </dialog>
+
+    <dialog id="histDlg" class="dlg hist-dlg">
+      <div class="dlg-head">
+        <h2>過去の曲</h2>
+        <button id="histClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
+      </div>
+      <p class="dlg-note">新規作成する前の曲が、JSON で保存するときと同じ名前で自動で残っている（このブラウザだけ・新しい順に100曲まで）。開くと、いまの曲もここに残る。</p>
+      <div id="histList" class="hist-list"></div>
     </dialog>
 
     <dialog id="helpDlg" class="dlg help-dlg">
@@ -561,6 +595,23 @@ const description =
   }
   @media (max-width: 520px) { .trk-mix { grid-template-columns: 1fr; } }
 
+  /* ---- 新規作成 ---- */
+  .new-dlg { width: min(480px, calc(100vw - 32px)); }
+  .new-msg { margin: 16px 0 4px; font-size: 14px; font-weight: 600; }
+  .new-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 18px; }
+  .new-acts .grow { flex: 1; }
+  .hw.taupe.new-go { background: var(--red); box-shadow: 0 3px 0 #a3332b, inset 0 1px 0 rgba(255, 255, 255, .15); }
+  .hw.taupe.new-go:active { box-shadow: 0 1px 0 #a3332b; }
+
+  /* ---- 過去の曲 ---- */
+  .hist-dlg { width: min(560px, calc(100vw - 32px)); }
+  .hist-list { display: grid; gap: 4px; }
+  .hist-row { display: flex; align-items: center; gap: 6px; }
+  .hist-open { flex: 1; min-width: 0; display: grid; gap: 2px; text-align: left; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: var(--text); font: inherit; cursor: pointer; }
+  .hist-open:hover { background: #262626; }
+  .hist-open b { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+  .hist-open span { color: var(--muted); font-size: 11px; }
+
   /* ---- 操作のしかた・設定 ---- */
   .help-dlg { width: min(860px, calc(100vw - 32px)); font-size: 12px; color: var(--muted); }
   .help-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 32px; }
@@ -600,6 +651,10 @@ const description =
   .genre b { font-size: 13.5px; }
   .genre em { font-style: normal; font-size: 10.5px; color: var(--muted); }
   .genre span { grid-column: 1 / -1; font-size: 11px; color: var(--muted); line-height: 1.45; }
+  .arr { margin: 8px 0 0; }
+  .arr summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
+  .arr-row { margin-top: 8px; gap: 8px 16px; }
+  .arr-row .f span { color: var(--muted); font-size: 11.5px; }
   .more { margin: -6px 0 18px; }
   .more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
   .more .genres { margin: 10px 0 0; }
@@ -621,6 +676,11 @@ const description =
   .ptile { display: grid; gap: 2px; text-align: left; background: #171717; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .ptile b { font-size: 12.5px; }
   .ptile span { font-size: 10.5px; color: var(--muted); line-height: 1.4; }
+  .pick-voicing { display: grid; grid-template-columns: 5fr 3fr; gap: 0 18px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
+  .pick-voicing .picks { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .pick-voicing.one { grid-template-columns: 1fr; }
+  @media (min-width: 721px) { .pick-voicing.bass { grid-template-columns: 2fr 3fr; } }
+  @media (max-width: 720px) { .pick-voicing { grid-template-columns: 1fr; } }
   .ptile:hover, .ptile:focus-visible { border-color: var(--c); outline: none; }
   .ptile[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 16%, #171717); }
 

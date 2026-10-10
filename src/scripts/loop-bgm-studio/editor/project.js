@@ -9,6 +9,7 @@
     recipe: 作ったときのレシピコード（由来の記録。読み込みには使わない）
     st:     エンジンの状態（テンポ・キー・音色・タネ…）。作り直しやMIDIの音色番号に使う
     bars, beats, chords: 小節数・拍子・小節ごとの和音（[根音, 種類]、キーからの相対）
+    slots:  拍ごとの和音（長さ bars*beats）。小節の途中で和音が変わるときだけ持つ（無ければ chords で小節ごと）
     mix:    { lead|chord|bass|drum: {vol, pan, rev, mute, solo, sound, tone, rack} }
               rev   = 共通リバーブへのセンド量（0〜100、50が曲調の標準）
               sound = 音色（sounds.js の表のキー）
@@ -16,6 +17,12 @@
               rack  = [{type, on, p}]（エフェクト。上から順に通る。fx.js）
     fx:     { revLen }  共通リバーブのディケイ（秒）
     st.leadStyle / st.chordStyle … エディタで選んだパターン（レシピコードには入らない）
+    st.chordVoice / st.chordRange … コードの響き・音域（同上。曲調どおり以外のときに使う）
+    st.plan   … メロディの型（'motif' うた / 'free' / 'minimal' / 'ostinato' / 'arp'。無ければ曲調の既定）
+    st.harmVary / st.harmSeed … コードのゆらぎの強さ（0〜100）とタネ。作ったときの和音は slots に残る
+    st.pedal  … ベースを主音に固定するか（true/false。null なら曲調の既定）
+    st.chordMotion … 和音の動き（'auto' / 'half' / 'quarter' / 'hold'。無ければ曲調どおり）
+    st.beats  … 拍子の上書き（3 / 4。無ければ曲調どおり）。レシピコードには入らない
     notes:  {
       lead:  [{t, d, n, v, l}]   t=位置・d=長さ（8分音符単位）n=MIDIノート v=強さ0〜1 l=main/oct/harm/counter
       chord: [{t, d, n, v}]      和音は1音ずつばらして持つ
@@ -118,7 +125,7 @@ export function fromState(st, mix) {
   // ミュートはエディタの mix が持つ。曲調の演奏は全パート作っておく
   s.mute = { lead: false, chord: false, bass: false, drum: false };
   const song = E.buildSong(s);
-  return {
+  const proj = {
     format: FORMAT, version: VERSION,
     recipe: E.encodeRecipe(st),
     st: s, bars: song.bars, beats: song.beats, chords: song.chords,
@@ -126,7 +133,28 @@ export function fromState(st, mix) {
     fx: { revLen: REV_LEN.def },
     notes: notesFromEvents(song.events),
   };
+  if (song.slots) proj.slots = song.slots;
+  return proj;
 }
+
+/* 位置 t（8分音符単位）で鳴っている和音。拍ごとの和音があればそれを使う */
+export function chordAt(proj, t) {
+  const end = endOf(proj), u = ((t % end) + end) % end;
+  if (proj.slots) return proj.slots[Math.floor(u / 2) % proj.slots.length];
+  return proj.chords[Math.floor(u / (proj.beats * 2)) % proj.bars];
+}
+/* 小節 b の和音の並び：[{t: 小節内の位置, ch}]（同じ和音が続くところはまとめる） */
+export function chordSegs(proj, b) {
+  const out = [];
+  for (let q = 0; q < (proj.slots ? proj.beats : 1); q++) {
+    const ch = proj.slots ? proj.slots[b * proj.beats + q] : proj.chords[b];
+    const last = out[out.length - 1];
+    if (!last || last.ch[0] !== ch[0] || last.ch[1] !== ch[1]) out.push({ t: q * 2, ch });
+  }
+  return out;
+}
+/* 作り直しのとき、いまの和音をそのままエンジンに渡す */
+export const withChords = (proj, st) => { if (proj.slots) st.slots = proj.slots; return st; };
 
 /* 曲調を変えてもミキサーは引き継ぐ。メロディとコードの音色だけは新しい曲調のものにする */
 function carryMix(mix, st) {
@@ -148,7 +176,10 @@ export function setSound(proj, k, key) {
 export function setStyle(proj, k, key) {
   if (k === 'lead') {
     proj.st.leadStyle = key;
-    regenerateTrack(proj, 'lead', { mel: clone(S.LEAD_STYLES[key].mel), seed: proj.st.seed });
+    // 反復の型を持たない型（ふつう・細かく…）は、いまの作り方（うた／ランダムな線）のまま数値だけ替える
+    const eff = proj.st.plan || E.PRESETS[proj.st.preset].plan || 'free';
+    const plan = S.LEAD_STYLES[key].plan || (eff === 'free' ? 'free' : 'motif');
+    regenerateTrack(proj, 'lead', { mel: clone(S.LEAD_STYLES[key].mel), plan, seed: proj.st.seed });
   } else if (k === 'chord') {
     proj.st.chordStyle = key;
     if (key === 'auto') regenerateTrack(proj, 'chord', { seed: proj.st.seed });
@@ -157,14 +188,37 @@ export function setStyle(proj, k, key) {
   else regenerateTrack(proj, 'drum', { drums: key, seed: proj.st.seed });
 }
 
+/* コードの響き・音域を変えて、いまの弾き方で並べ直す。曲調どおりのときは「のばし」にする */
+export function setChordVoicing(proj, patch) {
+  Object.assign(proj.st, patch);
+  const style = proj.st.chordStyle && proj.st.chordStyle !== 'auto' ? proj.st.chordStyle : 'whole';
+  setStyle(proj, 'chord', style);
+}
+
 /* いま選ばれているパターン（メロディは作り方の数値が一致するものがあれば） */
 export function styleOf(proj, k) {
   if (k === 'bass') return proj.st.bassStyle;
   if (k === 'drum') return proj.st.drums;
   if (k === 'chord') return proj.st.chordStyle || 'auto';
-  const m = proj.st.mel;
-  const hit = Object.entries(S.LEAD_STYLES).find(([, v]) => Object.keys(v.mel).every(x => v.mel[x] === m[x]));
-  return hit ? hit[0] : (proj.st.leadStyle && S.LEAD_STYLES[proj.st.leadStyle] ? proj.st.leadStyle : null);
+  // いま効いている反復の型（決めていなければ曲調の既定）と作り方の数値が両方合うもの。
+  // 反復の型だけ合う（曲調の既定のまま）なら、その型を表す項目を選ぶ
+  const m = proj.st.mel, eff = proj.st.plan || E.PRESETS[proj.st.preset].plan || 'free';
+  const want = ['minimal', 'ostinato', 'arp', 'motif'].includes(eff) ? eff : null;
+  let list = Object.entries(S.LEAD_STYLES).filter(([, v]) => (v.plan || null) === want);
+  // うたのときは、型を持たない数値だけの型（ふつう・細かく…）も候補
+  if (want === 'motif') list = list.concat(Object.entries(S.LEAD_STYLES).filter(([, v]) => !v.plan));
+  const hit = list.find(([, v]) => Object.keys(v.mel).every(x => v.mel[x] === m[x]));
+  if (hit) return hit[0];
+  if (want && list.length) return list[0][0];
+  return proj.st.leadStyle && S.LEAD_STYLES[proj.st.leadStyle] ? proj.st.leadStyle : null;
+}
+
+/* ベースの土台：主音に固定（ペダル）か。決めていなければ曲調の既定 */
+export const pedalOf = proj => proj.st.pedal === undefined || proj.st.pedal === null
+  ? !!E.PRESETS[proj.st.preset].pedal : !!proj.st.pedal;
+export function setPedal(proj, on) {
+  proj.st.pedal = !!on;
+  regenerateTrack(proj, 'bass', { bassStyle: proj.st.bassStyle, seed: proj.st.seed });
 }
 
 /* 1トラックだけ新しいタネで作り直す（ほかのトラックの編集は残る） */
@@ -173,7 +227,7 @@ export function regenerateTrack(proj, track, patch) {
   st.sections = proj.bars / 16;
   st.mute = { lead: false, chord: false, bass: false, drum: false };
   if (!patch || patch.seed === undefined) st.seed = (Math.random() * 9000000 | 0) + 1000;
-  const song = E.buildSong(st);
+  const song = E.buildSong(withChords(proj, st));
   proj.notes[track] = notesFromEvents(song.events)[track];
   // タネはメロディの作り直しのときだけ本体に残す（ほかは音色や型の選択だけ残す）
   if (track === 'lead') proj.st.seed = st.seed;
@@ -200,6 +254,11 @@ export function setBars(proj, bars) {
   const chords = [];
   for (let i = 0; i < bars; i++) chords.push(proj.chords[i % old]);
   proj.chords = chords;
+  if (proj.slots) {
+    const slots = [];
+    for (let i = 0; i < bars * proj.beats; i++) slots.push(proj.slots[i % proj.slots.length]);
+    proj.slots = slots;
+  }
   for (const k of TRACKS) {
     const src = proj.notes[k], out = [];
     for (let off = 0; off < end; off += oldEnd)
@@ -266,6 +325,14 @@ export function parseProject(text) {
   st.seed = (+st.seed | 0) || 1000;
   if (st.leadStyle !== undefined && !S.LEAD_STYLES[st.leadStyle]) delete st.leadStyle;
   if (st.chordStyle !== undefined && !S.CHORD_STYLES[st.chordStyle]) delete st.chordStyle;
+  if (st.chordVoice !== undefined && !S.CHORD_VOICES[st.chordVoice]) delete st.chordVoice;
+  if (st.chordRange !== undefined && !S.CHORD_RANGES[st.chordRange]) delete st.chordRange;
+  if (st.plan !== undefined && !['motif', 'free', 'minimal', 'ostinato', 'arp'].includes(st.plan)) delete st.plan;
+  if (st.harmVary !== undefined) st.harmVary = clamp(+st.harmVary || 0, 0, 100);
+  if (st.harmSeed !== undefined) st.harmSeed = (+st.harmSeed | 0) || 1;
+  if (st.pedal !== undefined && st.pedal !== null) st.pedal = !!st.pedal;
+  if (st.chordMotion !== undefined && !S.CHORD_MOTIONS[st.chordMotion]) delete st.chordMotion;
+  if (st.beats !== undefined && st.beats !== 3 && st.beats !== 4) delete st.beats;
   delete st.gm;
   for (const k of TRACKS) { st.mute[k] = false; st.partVol[k] = st.partVol[k] ?? 80; }
 
@@ -291,8 +358,11 @@ export function parseProject(text) {
   const chords = [];
   for (let i = 0; i < bars; i++) {
     const c = Array.isArray(o.chords) ? o.chords[i % Math.max(1, o.chords.length)] : null;
-    chords.push(Array.isArray(c) && E.QUAL[c[1]] ? [c[0] | 0, c[1]] : [0, 'maj']);
+    chords.push(Array.isArray(c) && E.QUAL[c[1]] ? [c[0] | 0, c[1]] : [0, 'maj7']);
   }
+  const okSlots = Array.isArray(o.slots) && o.slots.length === bars * beats
+    && o.slots.every(c => Array.isArray(c) && E.QUAL[c[1]]);
+  const slots = okSlots ? o.slots.map(c => [c[0] | 0, c[1]]) : null;
   const mix = {};
   for (const k of TRACKS) {
     const m = (o.mix || {})[k] || {};
@@ -305,7 +375,9 @@ export function parseProject(text) {
     mix[k].sound = S.SOUND_TABLE[k][m.sound] ? m.sound : def;
   }
   const fxAll = { revLen: num((o.fx || {}).revLen, REV_LEN.min, REV_LEN.max, REV_LEN.def) };
-  return { format: FORMAT, version: VERSION, recipe: String(o.recipe || ''), st, bars, beats, chords, mix, fx: fxAll, notes };
+  const proj = { format: FORMAT, version: VERSION, recipe: String(o.recipe || ''), st, bars, beats, chords, mix, fx: fxAll, notes };
+  if (slots) proj.slots = slots;
+  return proj;
 }
 
 /* 前の版の「歪み・コンプ」（0〜100）をラックに置き換える */

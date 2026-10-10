@@ -13,6 +13,7 @@ import { defaultState } from "../controls.js";
 import * as P from "./project.js";
 import * as S from "./sounds.js";
 import * as F from "./fx.js";
+import * as H from "./history.js";
 
 const { TRACKS, PITCHED, TRACK_INFO, DRUM_ROWS } = P;
 const STORE = 'loop-bgm-editor:v1';
@@ -20,13 +21,13 @@ const PMAX = 108, PMIN = 24, NROWS = PMAX - PMIN + 1;
 const RULER = 26, DSTRIP = 16, LANE = 58;
 const ANCHOR = .22;
 /* ジャンル選択で「その他」にしまっておく曲調。おまかせでも選ばない */
-const MORE_GENRES = ['omise', 'canon', 'sway', 'ambi', 'kurikaeshi'];                  // 追尾中の再生位置（ノート欄の幅に対する割合）
+const MORE_GENRES = ['omise', 'canon', 'sway', 'ambi', 'kurikaeshi', 'shinen', 'uneri'];                  // 追尾中の再生位置（ノート欄の幅に対する割合）
 const KEY_NAMES = ['C', 'C#/D♭', 'D', 'D#/E♭', 'E', 'F', 'F#/G♭', 'G', 'G#/A♭', 'A', 'A#/B♭', 'B'];
 const BLACK = new Set([1, 3, 6, 8, 10]);
 const MAJOR = [0, 2, 4, 5, 7, 9, 11], MINOR = [0, 2, 3, 5, 7, 8, 10];
 const C = {
   bg: '#121212', row: '#151515', rowScale: '#191919', bar: '#343434', beat: '#232323', sub: '#1a1a1a',
-  ruler: '#171717', text: '#9a978c', textHi: '#e9e6dc', key: '#1f1f1f', keyBlack: '#141414',
+  ruler: '#171717', text: '#9a978c', textHi: '#e9e6dc', key: '#c9c5b9', keyBlack: '#161616', keyText: '#3a3832',
   red: '#EC4A3E', band: 'rgba(233,230,220,.12)',
   padA: '#1e1e1e', padB: '#252525', lit: '#C9C3A6',
 };
@@ -127,7 +128,7 @@ export function startEditor({ loadTone }) {
   }
 
   /* ---------------- undo ---------------- */
-  const snap = () => JSON.stringify({ st: proj.st, bars: proj.bars, beats: proj.beats, chords: proj.chords, notes: proj.notes, recipe: proj.recipe });
+  const snap = () => JSON.stringify({ st: proj.st, bars: proj.bars, beats: proj.beats, chords: proj.chords, slots: proj.slots || null, notes: proj.notes, recipe: proj.recipe });
   function pushUndo(s) {
     undoStack.push(s || snap());
     if (undoStack.length > 200) undoStack.shift();
@@ -411,7 +412,7 @@ export function startEditor({ loadTone }) {
 
     // いまの和音と小節
     const bar = Math.floor(ph / epb());
-    $('chordName').textContent = E.chordLabel(proj.chords[bar % proj.bars], proj.st.key, E.PRESETS[proj.st.preset].tonic);
+    $('chordName').textContent = E.chordLabel(P.chordAt(proj, ph), proj.st.key, E.PRESETS[proj.st.preset].tonic);
     $('barCount').textContent = (bar + 1) + '/' + proj.bars;
   }
 
@@ -468,7 +469,12 @@ export function startEditor({ loadTone }) {
         if (x > W || x + barW < G) continue;
         if (b === 0 && wrapOff !== 0) { cx.fillStyle = '#3a3a3a'; cx.fillRect(x, 3, 2, RULER - 6); }
         if (b % step === 0) { cx.fillStyle = b % 4 === 0 ? C.textHi : C.text; cx.fillText(String(b + 1), x + 5, RULER / 2); }
-        if (barW >= 64 && cfg.rulerChord) { cx.fillStyle = '#7f7b6c'; cx.fillText(E.chordLabel(proj.chords[b], proj.st.key, tonic), x + 23, RULER / 2); }
+        if (barW >= 64 && cfg.rulerChord) {
+          // 小節の途中で変わる和音は、変わる拍の位置に並べる（入りきらないときは小節の頭だけ）
+          cx.fillStyle = '#7f7b6c';
+          const segs = P.chordSegs(proj, b), fit = barW / segs.length >= 58;
+          (fit ? segs : segs.slice(0, 1)).forEach((g, i) => cx.fillText(E.chordLabel(g.ch, proj.st.key, tonic) + (!fit && segs.length > 1 ? '…' : ''), x + g.t * zoomX + (i ? 4 : 23), RULER / 2));
+        }
       }
     });
     cx.restore();
@@ -479,9 +485,12 @@ export function startEditor({ loadTone }) {
     for (let n = PMIN; n <= PMAX; n++) {
       const y = Yp(n);
       if (y > bottom || y + rowH < RULER) continue;
-      cx.fillStyle = BLACK.has(n % 12) ? C.keyBlack : C.key;
-      cx.fillRect(0, y, G - 2, rowH - (rowH > 5 ? 1 : 0));
-      if (n % 12 === 0 && rowH >= 6) { cx.fillStyle = C.text; cx.fillText(E.midiName(n), 6, y + rowH / 2); }
+      const h = rowH - (rowH > 5 ? 1 : 0);
+      cx.fillStyle = C.key;
+      cx.fillRect(0, y, G - 2, h);
+      // 黒鍵は本物の鍵盤みたいに短めの黒い帯で重ねる
+      if (BLACK.has(n % 12)) { cx.fillStyle = C.keyBlack; cx.fillRect(0, y, Math.round((G - 2) * .62), rowH); }
+      if (n % 12 === 0 && rowH >= 6) { cx.fillStyle = C.keyText; cx.fillText(E.midiName(n), 6, y + rowH / 2); }
     }
     cx.restore();
     cx.fillStyle = '#171717'; cx.fillRect(0, 0, G, RULER);
@@ -1150,7 +1159,7 @@ export function startEditor({ loadTone }) {
     const st = Object.assign(JSON.parse(JSON.stringify(proj.st)), patch);
     st.sections = proj.bars / 16;
     st.mute = { lead: false, chord: false, bass: false, drum: false };
-    return P.notesFromEvents(E.buildSong(st).events);
+    return P.notesFromEvents(E.buildSong(P.withChords(proj, st)).events);
   }
   /* 塗った拍の強さを1段上げ下げして、上げ下げ前と後の強さ（0〜1）を返す */
   function bumpLevels(kind, cells, down) {
@@ -1194,12 +1203,50 @@ export function startEditor({ loadTone }) {
       if (m >= lo && m <= hi && pcs.has(((m % 12) + 12) % 12)) return m;
     return tg;
   }
-  const chordAt = t => proj.chords[Math.floor(mod(t) / epb()) % proj.bars];
+  const chordAt = t => P.chordAt(proj, t);
+
+  /* 反復の型（オスティナート・分散和音）のとき：音型の形は崩さず、2小節のかたまりごとに
+     なぞった線の高さへ平行移動する。⌥ なら同じ型のまま新しいタネで音型を作り直してから動かす */
+  function brushFigure(stroke, inC, at, eff) {
+    const span = 2 * epb();
+    const old = proj.notes.lead.filter(x => inC(x.t));
+    const hasOct = old.some(x => x.l === 'oct') || (!old.length && proj.st.mel.octUp);
+    const hasHarm = old.some(x => x.l === 'harm') || (!old.length && proj.st.mel.harm);
+    pushUndo();
+    if (stroke.alt || !old.some(x => x.l === 'main')) {
+      const all = buildWith({ seed: newSeed() }).lead;
+      proj.notes.lead = proj.notes.lead.filter(x => !inC(x.t)).concat(all.filter(x => inC(x.t) && x.l !== 'counter'));
+    }
+    const main = proj.notes.lead.filter(x => x.l === 'main' && inC(x.t));
+    const groups = new Map();
+    for (const x of main) { const c = Math.floor(x.t / span); if (!groups.has(c)) groups.set(c, []); groups.get(c).push(x); }
+    for (const [, list] of groups) {
+      let sn = 0, st = 0, n = 0;
+      for (const x of list) { const tg = at(x.t); if (tg === null) continue; sn += x.n; st += tg; n++; }
+      const shift = n ? Math.round(st / n - sn / n) : 0;
+      if (!shift) continue;
+      for (const x of list) x.n = nearestIn(poolPcs(x.t), x.n + shift, 48, 103);
+    }
+    // 重ね（オクターブ上・ハモり）はメロディに合わせて付け直す
+    proj.notes.lead = proj.notes.lead.filter(x => !(inC(x.t) && (x.l === 'oct' || x.l === 'harm')));
+    const extra = [];
+    for (const x of main) {
+      if (hasOct && x.n + 12 <= 103) extra.push({ t: x.t, d: x.d, n: x.n + 12, v: r2(x.v * .42), l: 'oct' });
+      if (hasHarm) { const h = poolBelow(x.t, x.n, 2); if (h !== null) extra.push({ t: x.t, d: x.d, n: h, v: r2(x.v * .52), l: 'harm' }); }
+    }
+    proj.notes.lead.push(...extra);
+    sel.clear();
+    changed();
+    setStatus((eff === 'arp' ? '分散和音' : 'オスティナート') + 'の形は崩さず、' + groups.size + 'かたまりを線の高さへ動かした'
+      + (stroke.alt ? '（音型も新しく）' : '（⌥ で音型も作り直す）'));
+  }
 
   /* メロディ：リズムはそのまま（空なら新しいタネで）、音程をなぞった線に沿わせる */
   function brushLead(stroke) {
     const { cells, inC } = cover(stroke, 1);
     const at = contour(stroke);
+    const eff = proj.st.plan || E.PRESETS[proj.st.preset].plan || 'free';
+    if (eff === 'ostinato' || eff === 'arp') { brushFigure(stroke, inC, at, eff); return; }
     const old = proj.notes.lead.filter(x => inC(x.t));
     const oldMain = old.filter(x => x.l === 'main');
     // なぞる前の重ね方を覚える（曲調のオクターブ上・ハモリ・裏メロと、自分で積んだ和音）
@@ -1296,7 +1343,7 @@ export function startEditor({ loadTone }) {
   /* その位置でメロディが使える音（曲調の音階の決め方と同じ：コード音／決まった音階／3和音） */
   function poolPcs(t) {
     const Pr = E.PRESETS[proj.st.preset], key = proj.st.key;
-    const ch = proj.chords[Math.floor(t / epb()) % proj.bars];
+    const ch = P.chordAt(proj, t);
     if (E.SCALE_SET[proj.st.scale]) return new Set(E.SCALE_SET[proj.st.scale](Pr.minor).map(i => (i + Pr.tonic + key + 120) % 12));
     if (proj.st.scale === 'triad') return new Set(E.QUAL[ch[1]].slice(0, 3).map(i => (i + ch[0] + key) % 12));
     return new Set(E.chordPool(ch[0] + key, ch[1], 0, 127).map(n => n % 12));
@@ -1802,23 +1849,74 @@ export function startEditor({ loadTone }) {
     $('pickTitle').textContent = (mode === 'sound' ? '音色' : 'パターン') + '：' + TRACK_INFO[k].name;
     $('pickNote').textContent = mode === 'sound'
       ? '押すとすぐ切り替わって、止まっているときは試しに鳴る。閉じるまで何回でも試せる'
-      : (k === 'chord' ? '押すとコードをそのリズムで並べ直す（⌘Z で戻せる）'
+      : (k === 'chord' ? '響きと音域を決めてから、弾き方（のばす・刻む・分散和音）を選ぶ。押すとすぐ並べ直す（⌘Z で戻せる）'
+        : k === 'bass' ? '土台（コードどおり／主音に固定）と遊び（経過音やフィル）を決めてから、パターンを選ぶ。押すと、同じタネのまま作り直す（⌘Z で戻せる）'
         : '押すと、同じタネのままこのパターンで作り直す（⌘Z で戻せる）');
     pickDlg.style.setProperty('--c', TRACK_INFO[k].color);
-    $('pickBody').innerHTML = cats.map(c => {
+    const tiles = (tbl, attr) => Object.entries(tbl).map(([key, v]) =>
+      `<button type="button" class="ptile" ${attr}="${key}"><b>${v.name}</b><span>${v.desc}</span></button>`).join('');
+    const voicing = k === 'chord' && mode !== 'sound'
+      ? `<div class="pick-voicing"><section><h3>響き</h3><div class="picks">${tiles(S.CHORD_VOICES, 'data-voice')}</div></section>`
+        + `<section><h3>音域</h3><div class="picks">${tiles(S.CHORD_RANGES, 'data-range')}</div></section></div>`
+      : k === 'bass' && mode !== 'sound'
+        ? `<div class="pick-voicing bass"><section><h3>土台</h3><div class="picks">${tiles(S.BASS_PEDALS, 'data-pedal')}</div></section>`
+          + `<section><h3>遊び</h3><div class="picks">${tiles(S.BASS_PLAYS, 'data-bplay')}</div></section></div>`
+        : '';
+    $('pickBody').innerHTML = voicing + cats.map(c => {
       const items = Object.entries(tbl).filter(([, v]) => (v.cat || 'all') === c.id);
       if (!items.length) return '';
       return `<section><h3>${c.name}</h3><div class="picks">${items.map(([key, v]) =>
         `<button type="button" class="ptile" data-key="${key}"><b>${v.name}</b>${v.desc ? `<span>${v.desc}</span>` : ''}</button>`).join('')}</div></section>`;
     }).join('');
-    $('pickBody').querySelectorAll('.ptile').forEach(b => b.addEventListener('click', () => choose(b.dataset.key)));
+    $('pickBody').querySelectorAll('[data-key]').forEach(b => b.addEventListener('click', () => choose(b.dataset.key)));
+    $('pickBody').querySelectorAll('[data-voice]').forEach(b => b.addEventListener('click', () => chooseVoicing({ chordVoice: b.dataset.voice })));
+    $('pickBody').querySelectorAll('[data-range]').forEach(b => b.addEventListener('click', () => chooseVoicing({ chordRange: b.dataset.range })));
+    $('pickBody').querySelectorAll('[data-pedal]').forEach(b => b.addEventListener('click', () => choosePedal(b.dataset.pedal === 'pedal')));
+    $('pickBody').querySelectorAll('[data-bplay]').forEach(b => b.addEventListener('click', () => chooseBassPlay(b.dataset.bplay)));
     syncPicker();
     pickDlg.showModal();
   }
   function syncPicker() {
     if (!pickDlg.open && !pick.k) return;
     const curKey = pick.mode === 'sound' ? proj.mix[pick.k].sound : P.styleOf(proj, pick.k);
-    $('pickBody').querySelectorAll('.ptile').forEach(b => b.setAttribute('aria-pressed', b.dataset.key === curKey ? 'true' : 'false'));
+    $('pickBody').querySelectorAll('[data-key]').forEach(b => b.setAttribute('aria-pressed', b.dataset.key === curKey ? 'true' : 'false'));
+    // 曲調どおりのときは響き・音域も曲調まかせなので、どれも点けない
+    const own = pick.k === 'chord' && curKey !== 'auto';
+    const voice = proj.st.chordVoice || 'std', range = proj.st.chordRange || 'mid';
+    $('pickBody').querySelectorAll('[data-voice]').forEach(b => b.setAttribute('aria-pressed', own && b.dataset.voice === voice ? 'true' : 'false'));
+    $('pickBody').querySelectorAll('[data-range]').forEach(b => b.setAttribute('aria-pressed', own && b.dataset.range === range ? 'true' : 'false'));
+    const ped = P.pedalOf(proj) ? 'pedal' : 'chord';
+    $('pickBody').querySelectorAll('[data-pedal]').forEach(b => b.setAttribute('aria-pressed', pick.k === 'bass' && b.dataset.pedal === ped ? 'true' : 'false'));
+    const bp = S.bassPlayOf(proj.st.bassArr);
+    $('pickBody').querySelectorAll('[data-bplay]').forEach(b => b.setAttribute('aria-pressed', pick.k === 'bass' && b.dataset.bplay === bp ? 'true' : 'false'));
+  }
+  function chooseBassPlay(key) {
+    if (S.bassPlayOf(proj.st.bassArr) === key) return;
+    pushUndo();
+    P.regenerateTrack(proj, 'bass', { bassArr: S.BASS_PLAYS[key].v, bassStyle: proj.st.bassStyle, seed: proj.st.seed });
+    sel.clear(); changed({ rows: true });
+    setTrack('bass');
+    setStatus('ベースの遊びを「' + S.BASS_PLAYS[key].name + '」にして、同じタネで作り直した（⌘Z で戻せる）');
+    syncPicker();
+  }
+  function choosePedal(on) {
+    if (P.pedalOf(proj) === on) return;
+    pushUndo();
+    P.setPedal(proj, on);
+    sel.clear(); changed({ rows: true });
+    setTrack('bass');
+    setStatus('ベースの土台を「' + S.BASS_PEDALS[on ? 'pedal' : 'chord'].name + '」にして、同じタネで作り直した（⌘Z で戻せる）');
+    syncPicker();
+  }
+  function chooseVoicing(patch) {
+    const wasAuto = P.styleOf(proj, 'chord') === 'auto';
+    pushUndo();
+    P.setChordVoicing(proj, patch);
+    sel.clear(); changed({ rows: true });
+    setTrack('chord');
+    const what = patch.chordVoice ? '響きを「' + S.CHORD_VOICES[patch.chordVoice].name : '音域を「' + S.CHORD_RANGES[patch.chordRange].name;
+    setStatus('コードの' + what + '」にした' + (wasAuto ? '（弾き方は「のばし」にした。下から選び直せる）' : '') + '（⌘Z で戻せる）');
+    syncPicker();
   }
   function choose(key) {
     const k = pick.k;
@@ -2204,46 +2302,120 @@ export function startEditor({ loadTone }) {
 
   /* ---------------- genre dialog ---------------- */
   const dlg = $('genreDlg');
+  // 拍子：'auto' は曲調どおり。3 / 4 を選ぶと、どの曲調もその拍子で作る（ブラウザに覚える）
+  let meter = String(pref('genreBeats', 'auto'));
+  if (!['auto', '3', '4'].includes(meter)) meter = 'auto';
+  const beatsOf = p => meter === 'auto' ? p.beats : +meter;
   const genreBtn = ([k, p]) =>
-    `<button type="button" class="genre" data-k="${k}"><b>${p.label}</b><span>${p.desc}</span><em>${p.beats}/4・${p.bpm}</em></button>`;
+    `<button type="button" class="genre" data-k="${k}"><b>${p.label}</b><span>${p.desc}</span><em data-meter>${beatsOf(p)}/4・${p.bpm}</em></button>`;
   const presets = Object.entries(E.PRESETS);
   $('genreList').innerHTML = presets.filter(([k]) => !MORE_GENRES.includes(k)).map(genreBtn).join('');
   $('genreMore').innerHTML = presets.filter(([k]) => MORE_GENRES.includes(k)).map(genreBtn).join('');
-  $('btnGenre').addEventListener('click', () => {
-    dlg.querySelectorAll('.genre').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === proj.st.preset ? 'true' : 'false'));
-    if (MORE_GENRES.includes(proj.st.preset)) dlg.querySelector('.more').open = true;
-    $('dlgBars').value = proj.bars;
-    $('codeStatus').textContent = '';
-    dlg.showModal();
+  $('dlgBeats').value = meter;
+  $('dlgBeats').addEventListener('change', e => {
+    meter = e.target.value; setPref('genreBeats', meter);
+    dlg.querySelectorAll('.genre').forEach(b => { const p = E.PRESETS[b.dataset.k]; b.querySelector('[data-meter]').textContent = beatsOf(p) + '/4・' + p.bpm; });
   });
+  const genreNote = $('genreNote').textContent;
+  // 新規作成から開いたときは、ミキサーも取り消しの履歴も引き継がずにまっさらから作る
+  let fromScratch = false;
+  function openGenre(scratch) {
+    fromScratch = scratch;
+    $('genreTitle').textContent = scratch ? '新規作成：ジャンルを選ぶ' : 'ジャンル選択';
+    $('genreNote').textContent = scratch
+      ? '曲調を選ぶと、すべてリセットして新しい曲を作る。閉じればいまの曲のまま。'
+      : genreNote;
+    dlg.querySelectorAll('.genre').forEach(b => b.setAttribute('aria-pressed', !scratch && b.dataset.k === proj.st.preset ? 'true' : 'false'));
+    if (!scratch && MORE_GENRES.includes(proj.st.preset)) dlg.querySelector('.more').open = true;
+    $('dlgBars').value = proj.bars;
+    $('codeStatus').textContent = ''; $('genreStatus').textContent = '';
+    dlg.showModal();
+  }
+  $('btnGenre').addEventListener('click', () => openGenre(false));
   $('dlgClose').addEventListener('click', () => dlg.close());
   dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
   const dlgSections = () => +$('dlgBars').value / 16;
-  function startFrom(st, msg) {
-    pushUndo();
-    const mix = proj ? proj.mix : null;
+  function startFrom(st, msg, opt) {
+    const o = opt || {}, scratch = fromScratch;
+    if (scratch) { archive(); undoStack = []; redoStack = []; }
+    else pushUndo();
+    const mix = proj && !scratch ? proj.mix : null;
     const fresh = P.fromState(st, mix);
     if (mix) for (const k of TRACKS) fresh.mix[k].solo = false;
+    if (o.post) o.post(fresh);
     proj = fresh;
     sel.clear(); focusRow = null; page = 0;
-    dlg.close();
+    if (o.keepOpen) {
+      // 続けて選べるように開けたまま。新規作成から入ったときも、2回目からはふつうの切り替え
+      if (scratch) { fromScratch = false; $('genreTitle').textContent = 'ジャンル選択'; $('genreNote').textContent = genreNote; }
+    } else dlg.close();
     changed({ sound: true, rows: true });
     scrollX = 0; fitView(); syncPage(); draw();
-    setStatus(msg + '（前の曲には ⌘Z で戻れる）');
+    setStatus(scratch ? msg : msg + '（前の曲には ⌘Z で戻れる）');
   }
-  dlg.querySelectorAll('.genre').forEach(b => b.addEventListener('click', () => {
-    const st = defaultState(b.dataset.k); st.sections = dlgSections();
-    startFrom(st, '「' + E.PRESETS[b.dataset.k].label + '」で新しく作った');
-  }));
-  /* おまかせ：「その他」の曲調は選ばず、テンポはいまのまま */
-  function dice(sections) {
-    let o = E.omakase(Math.random);
-    for (let i = 0; i < 30 && MORE_GENRES.includes(o.preset); i++) o = E.omakase(Math.random);
-    const st = Object.assign(defaultState(o.preset), o, { sections, bpm: proj.st.bpm });
-    startFrom(st, 'おまかせで「' + E.PRESETS[st.preset].label + '」にした（テンポは ' + st.bpm + ' のまま）');
+
+  /* ---- アレンジ：どの曲調を選ぶときも効かせる設定。ブラウザに覚える ---- */
+  const ARR_FIELDS = [
+    { id: 'motion', label: 'コードの動き', table: S.CHORD_MOTIONS },
+    { id: 'voice', label: '響き', table: S.CHORD_VOICES },
+    { id: 'style', label: '弾き方', table: S.CHORD_STYLES },
+    { id: 'pedal', label: 'ベースの土台', table: { auto: { name: '曲調どおり' }, chord: S.BASS_PEDALS.chord, pedal: S.BASS_PEDALS.pedal } },
+    { id: 'harm', label: 'コードの変化', table: S.CHORD_VARIES },
+    { id: 'bassPlay', label: 'ベースの遊び', table: Object.assign({ auto: { name: '曲調どおり' } }, S.BASS_PLAYS) },
+    { id: 'plan', label: 'メロディの型', table: { auto: { name: '曲調どおり（反復の型でなければ「うた」）' }, motif: { name: 'うた（動機から組む）' }, free: { name: 'ランダムな線（前の作り方）' }, minimal: { name: 'くりかえし' }, ostinato: { name: 'オスティナート' }, arp: { name: '分散和音' } } },
+  ];
+  const ARR_DEF = { motion: 'auto', harm: 'mid', voice: 'std', style: 'auto', pedal: 'auto', bassPlay: 'some', plan: 'auto' };
+  const arr = Object.assign({}, ARR_DEF, pref('genreArr', {}));
+  $('genreArr').innerHTML = ARR_FIELDS.map(f => `<label class="f"><span>${f.label}</span><select data-arr="${f.id}">`
+    + Object.entries(f.table).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('') + '</select></label>').join('');
+  $('genreArr').querySelectorAll('select').forEach(sel => {
+    if (![...sel.options].some(op => op.value === arr[sel.dataset.arr])) arr[sel.dataset.arr] = ARR_DEF[sel.dataset.arr];
+    sel.value = arr[sel.dataset.arr];
+    sel.addEventListener('change', () => { arr[sel.dataset.arr] = sel.value; setPref('genreArr', arr); });
+  });
+  // 作る前に効かせるもの（エンジンが読む）と、作ってから並べ直すもの（コードの響き・弾き方）
+  function applyArr(st) {
+    if (arr.motion !== 'auto') st.chordMotion = arr.motion;
+    if (arr.pedal !== 'auto') st.pedal = arr.pedal === 'pedal';
+    if (arr.plan !== 'auto') st.plan = arr.plan;
+    else if (!E.PRESETS[st.preset].plan) st.plan = 'motif';
+    // コードの変化は毎回新しいタネ：同じ曲調を押し直すたびに進行の揺れ方も変わる
+    st.harmVary = (S.CHORD_VARIES[arr.harm] || S.CHORD_VARIES.mid).v;
+    st.harmSeed = (Math.random() * 9000000 | 0) + 1;
+    if (arr.bassPlay !== 'auto' && S.BASS_PLAYS[arr.bassPlay]) st.bassArr = S.BASS_PLAYS[arr.bassPlay].v;
   }
-  $('dlgDice').addEventListener('click', () => dice(dlgSections()));
-  $('btnDice').addEventListener('click', () => dice(proj.bars / 16));
+  function postArr(p) {
+    if (arr.voice !== 'std') p.st.chordVoice = arr.voice;
+    if (arr.style !== 'auto') P.setStyle(p, 'chord', arr.style);
+    else if (arr.voice !== 'std') P.setStyle(p, 'chord', 'whole');
+  }
+  /* 曲調を選ぶ：テンポはいまのまま（新規作成のときだけ曲調の既定）。画面は開けたままで、何回でも押せる */
+  function pickGenre(k) {
+    const st = defaultState(k); st.sections = dlgSections();
+    if (meter !== 'auto') { st.beats = +meter; E.fitMeter(st); }
+    const scratch = fromScratch;
+    if (!scratch && proj) st.bpm = proj.st.bpm;
+    applyArr(st);
+    startFrom(st, '「' + E.PRESETS[k].label + '」で作った' + (scratch ? '' : '（テンポ ' + st.bpm + ' のまま）'), { keepOpen: true, post: postArr });
+    dlg.querySelectorAll('.genre').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === k ? 'true' : 'false'));
+    $('genreStatus').textContent = '「' + E.PRESETS[k].label + '」で作った。もう一度押すと別の演奏になる';
+  }
+  dlg.addEventListener('close', () => { fromScratch = false; });
+
+  /* 新規作成：確認してから、すべてリセットしてジャンル選択へ */
+  const newDlg = $('newDlg');
+  $('btnNew').addEventListener('click', () => newDlg.showModal());
+  $('newClose').addEventListener('click', () => newDlg.close());
+  $('newCancel').addEventListener('click', () => newDlg.close());
+  newDlg.addEventListener('click', e => { if (e.target === newDlg) newDlg.close(); });
+  $('newSave').addEventListener('click', () => exportAs('json'));
+  $('newGo').addEventListener('click', () => { newDlg.close(); openGenre(true); });
+  dlg.querySelectorAll('.genre').forEach(b => b.addEventListener('click', () => pickGenre(b.dataset.k)));
+  /* ランダム：「その他」といまの曲調は除いて、曲調だけを引く（テンポ・アレンジはそのまま） */
+  $('dlgRandom').addEventListener('click', () => {
+    const pool = Object.keys(E.PRESETS).filter(k => !MORE_GENRES.includes(k) && !(proj && k === proj.st.preset));
+    pickGenre(pool[Math.floor(Math.random() * pool.length)]);
+  });
   $('codeApply').addEventListener('click', () => {
     const r = E.decodeRecipe($('codeIn').value);
     if (!r) { $('codeStatus').textContent = 'そのコードは読めなかった。文字の抜けがないか見てみて'; return; }
@@ -2271,15 +2443,59 @@ export function startEditor({ loadTone }) {
     const f = e.dataTransfer.files[0]; if (f) loadFile(f);
   });
   async function loadFile(f) {
-    try {
-      const p = P.parseProject(await f.text());
-      pushUndo();
-      proj = p; sel.clear(); focusRow = null; page = 0;
-      changed({ sound: true, rows: true });
-      scrollX = 0; fitView(); syncPage(); draw();
-      setStatus('「' + f.name + '」を開いた');
-    } catch (err) { setStatus('開けなかった：' + err.message, true); }
+    try { openProject(P.parseProject(await f.text()), '「' + f.name + '」を開いた'); }
+    catch (err) { setStatus('開けなかった：' + err.message, true); }
   }
+  function openProject(p, msg) {
+    pushUndo();
+    proj = p; sel.clear(); focusRow = null; page = 0;
+    changed({ sound: true, rows: true });
+    scrollX = 0; fitView(); syncPage(); draw();
+    setStatus(msg);
+  }
+
+  /* ---------------- 過去の曲 ---------------- */
+  // 新規作成で手放す曲を、JSON で保存するときと同じ名前でブラウザ（IndexedDB）に残す
+  function archive() {
+    if (!proj) return Promise.resolve(false);
+    return H.add({ name: baseName(), json: P.toJSON(proj), preset: proj.st.preset, bpm: proj.st.bpm, bars: proj.bars })
+      .catch(() => { setStatus('前の曲をブラウザに残せなかった', true); return false; });
+  }
+  const histDlg = $('histDlg');
+  const fmtDate = t => {
+    const d = new Date(t), z = n => String(n).padStart(2, '0');
+    return d.getFullYear() + '/' + z(d.getMonth() + 1) + '/' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes());
+  };
+  let histItems = [];
+  async function syncHist() {
+    try { histItems = await H.list(); }
+    catch (e) { histItems = []; $('histList').innerHTML = '<p class="dlg-note">このブラウザでは過去の曲を読み出せなかった</p>'; return; }
+    $('histList').innerHTML = histItems.length ? histItems.map(h => {
+      const g = E.PRESETS[h.preset];
+      return `<div class="hist-row" data-id="${h.id}">
+        <button type="button" class="hist-open" data-hopen="${h.id}" title="この曲を開く（いまの曲には ⌘Z で戻れる）"><b>${h.name}</b><span>${fmtDate(h.savedAt)}・${g ? g.label : h.preset}・${h.bpm}BPM・${h.bars}小節</span></button>
+        <button type="button" class="x" data-hdel="${h.id}" title="消す" aria-label="消す">${ICON_CLOSE}</button>
+      </div>`;
+    }).join('') : '<p class="dlg-note">まだない。新規作成すると、それまでの曲がここに入る</p>';
+  }
+  $('btnHist').addEventListener('click', () => { syncHist(); histDlg.showModal(); });
+  $('histClose').addEventListener('click', () => histDlg.close());
+  histDlg.addEventListener('click', async e => {
+    if (e.target === histDlg) { histDlg.close(); return; }
+    const o = e.target.closest('[data-hopen]'), d = e.target.closest('[data-hdel]');
+    if (o) {
+      const h = histItems.find(x => x.id === +o.dataset.hopen); if (!h) return;
+      try {
+        const p = P.parseProject(h.json);
+        await archive();   // いまの曲も残しておく（同じ中身ならふえない）
+        histDlg.close();
+        openProject(p, '「' + h.name + '」を開いた（前の曲には ⌘Z で戻れる）');
+      } catch (err) { setStatus('開けなかった：' + err.message, true); }
+    } else if (d) {
+      try { await H.remove(+d.dataset.hdel); } catch (err) { }
+      syncHist();
+    }
+  });
   function download(name, bytes, mime) {
     const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
     const a = document.createElement('a');
@@ -2339,7 +2555,7 @@ export function startEditor({ loadTone }) {
     const s = localStorage.getItem(STORE);
     if (s) proj = P.parseProject(s);
   } catch (e) { proj = null; }
-  if (!proj) proj = P.fromState(defaultState('nonbiri'));
+  if (!proj) { const st = defaultState('nonbiri'); applyArr(st); proj = P.fromState(st); postArr(proj); }
 
   buildTracks();
   computeRows();

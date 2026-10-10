@@ -20,15 +20,20 @@ export const QUAL={
   maj7:[0,4,7,11], maj9:[0,4,7,11,14], six:[0,4,7,9],
   m7:[0,3,7,10], m9:[0,3,7,10,14], m6:[0,3,7,9],
   dom7:[0,4,7,10], dom9:[0,4,7,10,14], dom13:[0,4,7,10,14],
-  m7b5:[0,3,6,10], sus9:[0,5,7,10,14], dom7s9:[0,4,7,10,15]
+  m7b5:[0,3,6,10], sus9:[0,5,7,10,14], dom7s9:[0,4,7,10,15],
+  // 2026-10-08 追加（ダーク・シネマティック向け）：min は素の短3和音（ラインクリシェの出発点）、
+  // mM7 はその7度が半音下がった形。どちらも暗いだけで濁らない
+  min:[0,3,7,12], mM7:[0,3,7,11]
 };
 export const EXT={
   maj7:[2,9], maj9:[2,9], six:[2,11], m7:[2,5], m9:[2,5], m6:[2,5],
-  dom7:[2,9], dom9:[2,9], dom13:[2,9], m7b5:[1,8], sus9:[2,9], dom7s9:[3,8]
+  dom7:[2,9], dom9:[2,9], dom13:[2,9], m7b5:[1,8], sus9:[2,9], dom7s9:[3,8],
+  min:[2,5], mM7:[2,5]
 };
 export const SUF={maj7:'M7',maj9:'M9',six:'6',m7:'m7',m9:'m9',m6:'m6',dom7:'7',dom9:'9',
-  dom13:'13',m7b5:'m7\u266d5',sus9:'9sus',dom7s9:'7#9'};
-export const MINOR_Q={m7:1,m9:1,m6:1,m7b5:1};
+  dom13:'13',m7b5:'m7\u266d5',sus9:'9sus',dom7s9:'7#9',
+  min:'m',mM7:'mM7'};
+export const MINOR_Q={m7:1,m9:1,m6:1,m7b5:1,min:1,mM7:1};
 export function midiName(m){ return PC[((m%12)+12)%12]+(Math.floor(m/12)-1); }
 /* Spell chord roots the way a musician would: flats unless we're in a sharp key. */
 export const PCF=["C","D\u266d","D","E\u266d","E","F","G\u266d","G","A\u266d","A","B\u266d","B"];
@@ -164,7 +169,12 @@ export const BASSES={
   bounce:{name:'はねる',gm:33}, whole:{name:'のばし',gm:38},
   offbeat:{name:'裏打ち',gm:38}, pulse:{name:'8分刻み',gm:38},
   octave:{name:'オクターブ',gm:38}, synco:{name:'シンコペ',gm:33},
-  arp:{name:'分散和音',gm:33}, funk:{name:'ファンク',gm:36}
+  arp:{name:'分散和音',gm:33}, funk:{name:'ファンク',gm:36},
+  // 2026-10-08 追加（ダーク・シネマティック向け）
+  heartbeat:{name:'鼓動',gm:38},
+  // 2026-10-08 追加：根音と5度の往復だけじゃない、遊ぶベース
+  riff:{name:'リフ',gm:33,desc:'タネで作った2小節のリフを、和音に合わせて移して回す。8小節の終わりだけ音が変わる'},
+  line:{name:'うたうベース',gm:32,desc:'4分で歩く。離れた和音へは音階をたどり、近ければ3度・5度・オクターブを回って、次の根音の隣から入る'}
 };
 export const KITS={
   brush:{name:'ブラシ'}, pop:{name:'ポップ'}, night:{name:'夜'},
@@ -265,7 +275,40 @@ dnb:[[2,'m9'],[2,'m9'],[10,'maj9'],[10,'maj9'],[5,'maj9'],[5,'maj9'],[0,'sus9'],
   [2,'m9'],[2,'m9'],[10,'maj9'],[10,'maj9'],[7,'m9'],[7,'m9'],[9,'sus9'],[9,'dom7']],
 /* vi-IV-I-V。2小節ずつで大きく開く */
 trance:[[9,'m7'],[9,'m7'],[5,'maj7'],[5,'maj7'],[0,'maj9'],[0,'maj9'],[7,'sus9'],[7,'sus9'],
-  [9,'m7'],[9,'m7'],[5,'maj7'],[5,'maj7'],[0,'maj9'],[0,'maj9'],[7,'sus9'],[4,'dom7']]
+  [9,'m7'],[9,'m7'],[5,'maj7'],[5,'maj7'],[0,'maj9'],[0,'maj9'],[7,'sus9'],[4,'dom7']],
+/* ---- 2026-10-08 ダーク・シネマティック：根音がほぼ動かない短調の進行。ベースは pedal で主音に固定する前提 ---- */
+/* 暗い映画（エオリアン）：i に8小節とどまり、♭VI へ沈んで ♭VII から戻る。ペダルの上では Cm9 → A♭M7/C → B♭sus/C */
+dark:[[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],
+  [8,'maj7'],[8,'maj7'],[8,'maj7'],[8,'maj7'],[10,'sus9'],[10,'sus9'],[0,'m9'],[0,'m9']],
+/* 霧（ドリアン）：i に8小節、IV9 へ開いて ♭VII sus から戻る。♮6 の「不思議だけど暗すぎない」色 */
+mist:[[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],[0,'m9'],
+  [5,'dom9'],[5,'dom9'],[5,'dom9'],[5,'dom9'],[10,'sus9'],[10,'sus9'],[0,'m9'],[0,'m9']],
+/* ---- 2026-10-08 うらめん・ボス・こうげき ---- */
+/* ひみつ（A ドリアン）：i と IV9（♮6 の明るさ）を行き来して、♭VI・♭VII から sus で戻る */
+secret:[[9,'m9'],[9,'m9'],[2,'dom9'],[2,'dom9'],[5,'maj9'],[7,'six'],[9,'m9'],[4,'sus9'],
+  [9,'m9'],[9,'m9'],[2,'dom9'],[2,'dom9'],[5,'maj9'],[0,'maj9'],[7,'six'],[4,'sus9']],
+/* ボス（C 短調）：i → ♭VI → iv → V7。後半は ♭VII と ii°で緊張を引っぱって V7 で締める */
+boss:[[0,'min'],[0,'min'],[8,'maj7'],[8,'maj7'],[5,'m7'],[5,'m7'],[7,'dom7'],[7,'dom7'],
+  [0,'min'],[0,'min'],[8,'maj7'],[10,'six'],[5,'m7'],[2,'m7b5'],[7,'sus9'],[7,'dom7']],
+/* こうげき（A 短調）：i → ♭VI → ♭VII の突き上げを2周、最後は V7 */
+assault:[[9,'m7'],[5,'maj7'],[7,'six'],[9,'m7'],[9,'m7'],[5,'maj7'],[2,'m7'],[4,'dom7'],
+  [5,'maj7'],[7,'six'],[9,'m7'],[0,'six'],[5,'maj7'],[2,'m7'],[4,'sus9'],[4,'dom7']],
+/* ラインクリシェ：Cm → CmM7 → Cm7 → Cm6。根音はそのまま、内声だけ半音ずつ沈む */
+cliche:[[0,'min'],[0,'min'],[0,'mM7'],[0,'mM7'],[0,'m7'],[0,'m7'],[0,'m6'],[0,'m6'],
+  [0,'min'],[0,'min'],[0,'mM7'],[0,'mM7'],[0,'m7'],[0,'m7'],[0,'m6'],[0,'mM7']],
+/* ---- 2026-10-08 宇宙：壮大で明るく、2〜4小節ずつゆっくり動く大きな和音 ---- */
+/* リディアン・ペダル：I に II9 を乗せる（♯4 が浮く）。ベースは pedal で主音。無重力 */
+lydPedal:[[0,'maj9'],[0,'maj9'],[0,'maj9'],[0,'maj9'],[2,'dom9'],[2,'dom9'],[0,'maj9'],[0,'maj9'],
+  [0,'maj9'],[0,'maj9'],[2,'dom9'],[2,'dom9'],[2,'dom9'],[2,'dom9'],[0,'maj9'],[0,'maj9']],
+/* ただよい：I に IV と vi がふわっと重なるだけ（ペダルの上では FM9/C・Am9/C） */
+drift:[[0,'maj9'],[0,'maj9'],[0,'maj9'],[0,'maj9'],[5,'maj9'],[5,'maj9'],[0,'maj9'],[0,'maj9'],
+  [0,'maj9'],[0,'maj9'],[0,'maj9'],[0,'maj9'],[9,'m9'],[9,'m9'],[5,'maj9'],[5,'maj9']],
+/* ドリアン・ペダル（A）：i に IV9 が差し込む ♮6 の明るさ。最後は ♭VI M9 で持ち上げる */
+dorPedal:[[9,'m9'],[9,'m9'],[9,'m9'],[9,'m9'],[2,'dom9'],[2,'dom9'],[9,'m9'],[9,'m9'],
+  [9,'m9'],[9,'m9'],[9,'m9'],[9,'m9'],[2,'dom9'],[2,'dom9'],[5,'maj9'],[5,'maj9']],
+/* ミクソリディアン・ペダル：I6・I9sus に ♭VII と IV を乗せる */
+mixoPedal:[[0,'six'],[0,'six'],[0,'sus9'],[0,'sus9'],[10,'maj7'],[10,'maj7'],[0,'six'],[0,'six'],
+  [0,'six'],[0,'six'],[0,'sus9'],[0,'sus9'],[5,'maj9'],[5,'maj9'],[10,'maj7'],[10,'maj7']]
 };
 
 /* beats = beats per bar. 3 gives you a waltz / 6-8 feel. */
@@ -356,7 +399,42 @@ export const PRESETS={
     lead:'synth',pad:'pad',bass:'offbeat',drums:'trance',center:84,comp:[1,3,5,7],rev:.38,filt:7400,scale:'penta'},
   hardcore:{label:'ハードコア',desc:'速く硬い4つ打ちを踏み続ける。ボス戦や追い込みに',
     bpm:176,swing:0,beats:4,prog:'heavy',tonic:0,minor:true,
-    lead:'synth',pad:'stab',bass:'offbeat',drums:'gabber',center:80,comp:[1,3,5,7],rev:.16,filt:7000,scale:'penta'}
+    lead:'synth',pad:'stab',bass:'offbeat',drums:'gabber',center:80,comp:[1,3,5,7],rev:.16,filt:7000,scale:'penta'},
+  /* 2026-10-08 ダーク・シネマティック（裏面向け）。plan:'ostinato' は2小節の音型をそのまま回す、
+     pedal はベースを主音に固定する。和音はほぼ止まり、音型の反復と脈打つ低音、長い弦やパッドでドラマを作る */
+  /* 2026-10-08 作り直し：暗さより「ここは特別な場所だ」というワクワク。ドリアンの ♮6（IV が長3和音）で
+     不思議に明るく、リフのベースと2ステップで前へ。表のジャンルに出す */
+  uramen:{label:'うらめん',desc:'ここにしかない場所に来たワクワク。ドリアンの不思議な明るさの上でグロッケンの動機が跳ね、リフのベースと2ステップが前へ押す。裏ステージや隠しエリアに',
+    bpm:124,swing:0,beats:4,prog:'secret',tonic:9,minor:true,plan:'motif',
+    lead:'glock',pad:'warm',bass:'riff',drums:'twostep',center:84,comp:[0,3,6],rev:.40,filt:5600,scale:'modeUp'},
+  shinen:{label:'しんえん',desc:'ゆっくり沈む弦の上で、エレピの音型が静かに回る。根音は動かず、内声だけ半音ずつ下がる。深い所へ降りる面に',
+    bpm:80,swing:0,beats:4,prog:'cliche',tonic:0,minor:true,plan:'ostinato',pedal:true,
+    lead:'rhodes',pad:'strings',bass:'heartbeat',drums:'soft',center:80,comp:[0],rev:.50,filt:3800,scale:'chord'},
+  uneri:{label:'うねり',desc:'ピアノの脈と、低く長いベース、ハーフタイムの重い打ち込み。弦の音型が同じ形で回り、和音が ♭VI へ沈んで大きくうねる。映画の予告のような暗さ',
+    bpm:88,swing:0,beats:4,prog:'dark',tonic:0,minor:true,plan:'ostinato',pedal:true,
+    lead:'bow',pad:'piano',bass:'whole',drums:'halftime',center:79,comp:[0,1,2,3,4,5,6,7],rev:.50,filt:3600,scale:'diatonic'},
+  /* 2026-10-08 宇宙：壮大で、歌うメロディ、ドラムは最低限。暗い音階は使わず、
+     2〜4小節ずつゆっくり動く大きな和音と、広いリバーブ、ゆっくり立ち上がる音で「感動」を作る */
+  hoshizora:{label:'ほしぞら',desc:'主音に居座るベースの脈の上で、I に IV と vi がふわっと重なるだけ。グロッケンの分散和音が星のようにまたたく。ふんわりパッド、ドラムなし',
+    bpm:80,swing:0,beats:4,prog:'drift',tonic:0,minor:false,plan:'arp',pedal:true,
+    lead:'glock',pad:'pad',bass:'pulse',drums:'none',center:86,comp:[0],rev:.60,filt:6000,scale:'chord'},
+  ginga:{label:'ぎんが',desc:'ドリアンの i に IV9 が差し込む、主音固定のペダル。シンセの分散和音が回り続け、あたたかいパッドが広がる。ドラムはそっと。壮大な場面に',
+    bpm:96,swing:0,beats:4,prog:'dorPedal',tonic:9,minor:true,plan:'arp',pedal:true,
+    lead:'synth',pad:'warm',bass:'pulse',drums:'soft',center:82,comp:[0],rev:.50,filt:5200,scale:'chord'},
+  oozora:{label:'おおぞら',desc:'主音に居座る鼓動の上で、I と ♭VII が入れ替わるミクソリディアン・ペダル。ベルの音型が同じ形で回り、ストリングスが広がる。ドラムなし',
+    bpm:84,swing:0,beats:4,prog:'mixoPedal',tonic:0,minor:false,plan:'ostinato',pedal:true,
+    lead:'bell',pad:'strings',bass:'heartbeat',drums:'none',center:84,comp:[0],rev:.55,filt:4800,scale:'chord'},
+  mugen:{label:'むげん',desc:'主音に居座るベースの脈の上で、I と II9 が入れ替わるリディアン・ペダル。ハープの音型が同じ形で回り、ハミングが広がる。無重力の面に',
+    bpm:92,swing:0,beats:4,prog:'lydPedal',tonic:0,minor:false,plan:'ostinato',pedal:true,
+    lead:'harp',pad:'choir',bass:'pulse',drums:'none',center:84,comp:[0],rev:.58,filt:5600,scale:'modeUp'},
+  /* 2026-10-08 ボス：怖いのは不協和音ではなく「強そう・仰々しい」。短調の太い和音と和声的短音階の V7、
+     重いビートとオクターブのベースで押す。メロディは動機の「うた」で堂々と */
+  boss:{label:'ボス',desc:'強く、怖く、仰々しく。ロックのビートとオクターブで刻むベース、弦の厚い和音の上でソウリードが堂々と歌う。V7 で締める王道の短調。ボス戦に',
+    bpm:148,swing:0,beats:4,prog:'boss',tonic:0,minor:true,plan:'motif',
+    lead:'saw',pad:'strings',bass:'octave',drums:'rock',center:79,comp:[0,3,6],rev:.30,filt:5200,scale:'chord'},
+  kougeki:{label:'こうげき',desc:'攻め立てる戦闘曲。8分で刻むベースと3+3+2で突っ込むスタブ、矩形波のリードが前のめりに走る。ザコ戦や攻撃のターンに',
+    bpm:168,swing:0,beats:4,prog:'assault',tonic:9,minor:true,plan:'motif',
+    lead:'square',pad:'stab',bass:'pulse',drums:'breaks',center:82,comp:[0,3,6],rev:.20,filt:6800,scale:'chord'}
 };
 
 /* rhythm libraries — 8th-note positions across 2 bars, one set per meter */
@@ -371,6 +449,78 @@ export const PLANS=[[0,0,1,0,2,2,1,4],[1,1,3,1,0,0,4,2],[5,5,0,5,3,3,2,4],[2,2,4
    per repetition, so it shifts shape slowly instead of looping identically */
 export const MIN_PLANS=[[0,0,0,0,0,0,0,0],[0,0,0,0,3,3,0,0],[3,3,3,3,0,0,0,0],[0,0,4,4,0,0,4,4]];
 
+/* ---- コードのゆらぎ（エディタの「コードの変化」st.harmVary 0〜100。レシピコードには入らない） ----
+   進行表の骨はそのままに、4小節ごとに「1小節に和音をいくつ置くか」の型（1・1・2・2 や 1・2・3・3 など）を選んで
+   小節を拍で割る。割った後ろには次の和音へ向かう和音（ドミナント・ii-V・裏コード・sus・隣の和音）を入れ、
+   ときどき小節まるごとを代理（I↔vi↔iii、IV↔ii）に替える。8小節の頭の和音は変えない。
+   返すのは拍ごとの和音（長さ bars*beats、進行表と同じ C 基準の [根音, 種類]） */
+export const HARM_RHYTHM={
+  4:{lo:[[1,1,1,1],[1,1,1,2],[1,1,2,1],[1,2,1,1]],
+     mid:[[1,1,2,2],[1,2,1,2],[2,1,2,1],[1,1,1,2],[2,2,1,1],[1,2,2,1]],
+     hi:[[1,2,2,4],[1,2,3,3],[2,2,2,2],[1,3,1,2],[2,2,1,4],[1,1,3,4]]},
+  3:{lo:[[1,1,1,1],[1,1,1,2],[1,2,1,1]],
+     mid:[[1,1,2,2],[1,2,1,2],[2,1,2,1],[2,2,1,1]],
+     hi:[[1,2,2,3],[2,2,2,2],[1,3,1,2],[2,1,3,3]]}
+};
+const qualOf=(a,b,c)=> a===4&&b===7&&c===11?'maj7': a===3&&b===7&&c===10?'m7': a===4&&b===7&&c===10?'dom7'
+  : a===3&&b===6&&c===10?'m7b5': a===3&&b===7&&c===11?'mM7': a===4?'maj7':'m7';
+export function diatonicChords(P){
+  const sc=SCALE_SET.diatonic(P.minor).map(i=>(i+P.tonic)%12);
+  return sc.map((r,d)=>{ const iv=k=>((sc[(d+k)%7]-r)+12)%12; return [r,qualOf(iv(2),iv(4),iv(6))]; });
+}
+export function harmonize(chords,P,v,rng){
+  const B=P.beats, bars=chords.length, D=diatonicChords(P);
+  const pcOf=x=>((x%12)+12)%12;
+  // 9th や 13th の多い進行は、足した和音も同じ色にそろえる
+  const rich=chords.filter(c=>/9|13/.test(c[1])).length>bars*.3;
+  const color=q=>!rich?q: q==='maj7'?'maj9': q==='m7'?'m9': q==='dom7'?'dom9': q;
+  const degOf=c=>D.findIndex(d=>d[0]===pcOf(c[0]));
+  const pick=list=>{ let t=0; for(const [,w] of list) t+=w; let r=rng()*t;
+    for(const [x,w] of list){ if((r-=w)<=0) return x; } return list[list.length-1][0]; };
+  const same=(a,b)=>a[0]===b[0]&&a[1]===b[1];
+  // 1. 小節まるごとの代理：3度となりの和音（同じ働き）へ
+  const base=chords.map((c,b)=>{
+    if(b%8===0 || b%16===15 || rng()>=v*.32) return c;
+    const d=degOf(c); if(d<0) return c;
+    const alt=D[(d+(rng()<.5?2:5))%7];
+    return alt[1]==='m7b5'?c:[alt[0],color(alt[1])];
+  });
+  // 2. 次の和音へ向かう和音
+  const approach=(T,first)=>{
+    const opts=[];
+    if(T[1]!=='m7b5') opts.push([[pcOf(T[0]+7),color('dom7')],3]);
+    const d=degOf(T);
+    if(d>=0){ const n=D[(d+(rng()<.5?1:6))%7]; if(n[1]!=='m7b5'||v>.6) opts.push([[n[0],color(n[1])],2]); }
+    if(rich) opts.push([[pcOf(T[0]+1),'dom7'],v>.6?1.2:.4]);
+    opts.push([[pcOf(T[0]),'sus9'],1]);
+    if(first){ const fd=degOf(first); if(fd>=0){ const n=D[(fd+(rng()<.5?2:5))%7]; if(n[1]!=='m7b5') opts.push([[n[0],color(n[1])],1.5]); } }
+    return pick(opts);
+  };
+  const cut=n=> B===4 ? (n===1?[4]: n===2?(rng()<.75?[2,2]:[3,1]): n===3?(rng()<.5?[2,1,1]:[1,1,2]):[1,1,1,1])
+    : (n===1?[3]: n===2?(rng()<.7?[2,1]:[1,2]):[1,1,1]);
+  const tier=()=>{ const r=rng(); return r<v*.55?'hi': r<.25+v*.6?'mid':'lo'; };
+  const slots=[];
+  for(let g=0;g<bars;g+=4){
+    const T=HARM_RHYTHM[B][tier()], tmpl=T[Math.floor(rng()*T.length)];
+    for(let i=0;i<4&&g+i<bars;i++){
+      const b=g+i, X=base[b], next=base[(b+1)%bars];
+      const segs=cut(tmpl[i]), chs=[X];
+      // 後ろから、次の和音へ向かう鎖を作る（V の前は ii にしやすい：ii-V）
+      let tgt=next; const tail=[];
+      for(let k=segs.length-1;k>0;k--){
+        let c;
+        if(tgt[1].startsWith('dom') && degOf(tgt)>=0 && rng()<.6) c=[pcOf(tgt[0]+7),P.minor&&pcOf(tgt[0]+7-P.tonic)===2?'m7b5':color('m7')];
+        else c=approach(tgt,k===1?X:null);
+        if(same(c,tgt)) c=[pcOf(tgt[0]+7),color('dom7')];
+        tail.unshift(c); tgt=c;
+      }
+      chs.push(...tail);
+      segs.forEach((n,k)=>{ for(let q=0;q<n;q++) slots.push(chs[k]); });
+    }
+  }
+  return slots;
+}
+
 export function mulberry32(a){
   return function(){
     a|=0; a=a+0x6D2B79F5|0;
@@ -384,15 +534,38 @@ export function mulberry32(a){
    arrangement
    p8 = eighth-note position from the start; EPB eighths per bar
    ============================================================ */
-export function buildSong(st){
+/* st.beats（3 か 4）があれば、曲調の拍子を上書きする（エディタの「拍子」。レシピコードには入らない） */
+export function presetOf(st){
   const P=PRESETS[st.preset];
+  return (st.beats===3||st.beats===4)&&st.beats!==P.beats ? Object.assign({},P,{beats:st.beats}) : P;
+}
+export function buildSong(st){
+  const P=presetOf(st);
   const EPB=P.beats*2, MID=Math.floor(EPB/2), ACC=(P.beats===4)?[2,6]:[2,4];
   const rng=mulberry32(st.seed);
   const dens=st.density/100, mel=st.mel, key=st.key;
   const sections=st.sections, bars=16*sections, total=bars*EPB;
   const prog=PROGS[P.prog];
+  // 反復の型とベースの土台。エディタは st で上書きできる（レシピコードには入らない）
+  const planKind=st.plan||P.plan;
+  const pedal=(st.pedal===undefined||st.pedal===null)?!!P.pedal:!!st.pedal;
+  // 和音の動き（エディタの「アレンジ」。レシピコードには入らない）：half は2小節ごと、quarter は4小節ごと、
+  // hold は最初の和音だけ。進行表のかたまりの頭の和音を伸ばすので、進行の骨は残る
+  const motion=st.chordMotion||'auto';
+  const progAt=i=> motion==='hold'?prog[0] : motion==='quarter'?prog[i-(i%4)] : motion==='half'?prog[i-(i%2)] : prog[i];
   const chords=[];
-  for(let s=0;s<sections;s++) for(let i=0;i<16;i++) chords.push(prog[i]);
+  for(let s=0;s<sections;s++) for(let i=0;i<16;i++) chords.push(progAt(i));
+  // 拍ごとの和音（コードのゆらぎ）。st.slots はエディタが持っている和音をそのまま使わせるとき。
+  // どちらも無ければ null で、和音は小節ごと（昔のまま）
+  const BEATS=P.beats;
+  let slots=null;
+  if(Array.isArray(st.slots) && st.slots.length===bars*BEATS && st.slots.every(c=>Array.isArray(c)&&QUAL[c[1]]))
+    slots=st.slots.map(c=>[c[0]|0,c[1]]);
+  else if((st.harmVary|0)>0 && motion!=='hold')
+    slots=harmonize(chords,P,Math.min(100,st.harmVary|0)/100*(P.pedal?.5:1),mulberry32(((st.harmSeed||st.seed)*23+0x7A3D)|0));
+  if(slots) for(let b=0;b<bars;b++) chords[b]=slots[b*BEATS];
+  const total0=bars*P.beats*2;
+  const chordAt=p=> slots ? slots[Math.floor((((p%total0)+total0)%total0)/2)] : chords[Math.floor(p/(P.beats*2))%bars];
 
   const ev=[];
   const center=P.center+mel.oct*12;
@@ -410,6 +583,7 @@ export function buildSong(st){
     : st.scale==='triad' ? notesInRange(QUAL[ch[1]].slice(0,3).map(i=>i+ch[0]+key),l,h)
     : chordPool(ch[0]+key,ch[1],l,h);
 
+  const pcOf2=m=>((m%12)+12)%12;
   const nextStep=()=>{
     const r=rng();
     let s=r<.40?1:r<.72?-1:r<.84?2:r<.94?-2:(r<.97?3:-3);
@@ -418,11 +592,189 @@ export function buildSong(st){
     return s;
   };
 
+  /* --- ostinato (plan:'ostinato'): 2小節の音型を一言一句そのまま回す ---
+     休符も音型の一部として固定する。8小節の最後の2小節だけ変形し、
+     奇数番目のセクションはまるごと音階上の2つ上に乗せ替えて B パートにする。
+     和音が変わると音の池が変わるので、形はそのままで音が曲がる（ラインクリシェと相性がいい） */
+  /* --- arp (plan:'arp'): 分散和音ふうの音型を鳴らし続ける ---
+     休符なし。リズムは音数で 8分／4分／2分、形は 上り・上り下り・とび・低い音に戻る の4つからタネで選ぶ。
+     2小節で1周。8小節の最後の2小節の変形（2つ上／形を逆から／オクターブ上）と
+     奇数番目のセクションの乗せ替えは ostinato と同じ。和音が変わると音の池が変わり、形のまま音が変わる */
+  if(planKind==='arp'){
+    const span=2*EPB, step=mel.dens>=55?1:mel.dens>=30?2:MID;
+    const cell=[]; for(let p=0;p<span;p+=step) cell.push(p);
+    // 形（音の池の添字）。後ろの4つは1オクターブほど上って下りる長い形で、メロディックなエレクトロニカ向き
+    const SHAPES=[[0,1,2,3],[0,1,2,3,2,1],[0,2,4,2],[0,3,0,4,0,5,0,4],
+      [0,2,4,6,7,6,4,2],[0,1,2,4,5,4,2,1],[0,3,5,7,5,3],[0,4,7,4,2,5,7,5]];
+    const shape=SHAPES[Math.floor(rng()*SHAPES.length)], L=shape.length;
+    const vary=Math.floor(rng()*3);
+    for(let c=0;c<bars/2;c++){
+      const barBase=c*2, sec=Math.floor(barBase/16), w=c%4, last=(w===3);
+      const shift=(sec%2===1)?2:0;
+      for(let k=0;k<cell.length;k++){
+        const p=cell[k], ch=chordAt(barBase*EPB+p);
+        const pl=poolAt(ch,lo,hi);
+        // 出だしは池の中でいちばん低い和音の音（根音・3度・5度）。テンションから始めると和音らしく聞こえない
+        const tri=[0,QUAL[ch[1]][1],QUAL[ch[1]][2]].map(i=>(((ch[0]+key+i)%12)+12)%12);
+        let low=pl.findIndex(m=>tri.includes(m%12)); if(low<0) low=Math.floor(pl.length*0.2);
+        const rel=(last&&vary===1)?shape[L-1-k%L]:shape[k%L];
+        let i=low+rel+shift+((last&&vary===0)?2:0);
+        i=Math.max(0,Math.min(pl.length-1,i));
+        let note=pl[i];
+        if(last && vary===2 && note+12<=hi) note+=12;
+        const at=barBase*EPB+p;
+        if(at>=total) continue;
+        const vel=(p%2===0?.66:.52)+(p%EPB===0?.06:0)+.05*(w/3);
+        ev.push({kind:'lead',layer:'main',p8:at,d8:step,note,vel});
+        if(mel.octUp && note+12<=103)
+          ev.push({kind:'lead',layer:'oct',p8:at,d8:step,note:note+12,vel:vel*.42});
+        if(mel.harm && i>=2)
+          ev.push({kind:'lead',layer:'harm',p8:at,d8:step,note:pl[i-2],vel:vel*.52});
+      }
+    }
+  } else if(planKind==='ostinato'){
+    const span=2*EPB, lib=RHY[P.beats];
+    const hits=new Set(lib[Math.floor(rng()*lib.length)]);
+    // 音数：高いほど8分を足し、低いほど抜く（頭の音は必ず残す）
+    for(let p=1;p<span;p++){
+      if(hits.has(p)){ if(mel.dens<40 && rng()<(40-mel.dens)/50) hits.delete(p); }
+      else if(mel.dens>60 && rng()<(mel.dens-60)/40) hits.add(p);
+    }
+    const cell=[...hits].sort((a,b)=>a-b), n=cell.length;
+    const steps=[0]; for(let k=1;k<n;k++) steps.push(nextStep());
+    const rest=cell.map((p,k)=>k>0 && rng()<restP*.35);
+    const dur=cell.map((p,k)=>{
+      let d=(k===n-1)?Math.min(4,span-p):(cell[k+1]-p);
+      if(rng()<.18) d=Math.min(d+1,4);
+      return d;
+    });
+    const vary=Math.floor(rng()*3);   // 0: 2つ上へ  1: しっぽを折り返す  2: オクターブ上
+    for(let c=0;c<bars/2;c++){
+      const barBase=c*2, sec=Math.floor(barBase/16), w=c%4, last=(w===3);
+      const shift=(sec%2===1)?2:0;
+      const pools=cell.map(p=>poolAt(chordAt(barBase*EPB+p),lo,hi));
+      const idx=[]; let prev=null;
+      for(let k=0;k<n;k++){
+        const pl=pools[k];
+        let i=(prev===null)?Math.floor(pl.length*0.45):prev+steps[k];
+        if(k>0 && i>pl.length-2) i=prev-Math.abs(steps[k]);
+        if(k>0 && i<1) i=prev+Math.abs(steps[k]);
+        if(i<0) i=-i;
+        if(i>=pl.length) i=pl.length-1-(i-pl.length+1);
+        i=Math.max(0,Math.min(pl.length-1,i));
+        idx.push(i); prev=i;
+      }
+      if(last && vary===1 && n>=3){
+        // 最後の2音を、その前の音を軸に折り返す
+        const ax=idx[n-3];
+        idx[n-2]=ax-(idx[n-2]-ax); idx[n-1]=ax-(idx[n-1]-ax);
+      }
+      for(let k=0;k<n;k++){
+        if(rest[k]) continue;
+        const pl=pools[k];
+        let i=idx[k]+shift+((last&&vary===0)?2:0);
+        i=Math.max(0,Math.min(pl.length-1,i));
+        let note=pl[i];
+        if(last && vary===2 && note+12<=hi) note+=12;
+        const at=barBase*EPB+cell[k];
+        if(at>=total) continue;
+        const vel=(cell[k]%2===0?.70:.56)+(k===0?.06:0)+.06*(w/3);
+        ev.push({kind:'lead',layer:'main',p8:at,d8:dur[k],note,vel});
+        if(mel.octUp && note+12<=103)
+          ev.push({kind:'lead',layer:'oct',p8:at,d8:dur[k],note:note+12,vel:vel*.42});
+        if(mel.harm && i>=2)
+          ev.push({kind:'lead',layer:'harm',p8:at,d8:dur[k],note:pl[i-2],vel:vel*.52});
+      }
+    }
+  } else if(planKind==='motif'){
+  /* --- motif (plan:'motif'): 動機から組み立てる「うた」 ---
+     1小節の動機（リズム＋音階上の形）をタネで1つ作り、8小節を
+     「動機・動機を音階上でずらす（ゼクエンツ）・動機・問いの終わり／動機・ずらし・対比・答えの終わり」のように組む。
+     強拍と長い音は和音の音に寄せ、弱拍は音階の経過音で動くので、でたらめに聞こえない。
+     奇数番目のセクションは動機ごと音階上で2つ上に乗せ替える */
+    const LIB=P.beats===4
+      ? [[[0,2],[2,2],[4,4]],[[0,3],[3,1],[4,2],[6,2]],[[0,1],[1,1],[2,2],[4,3]],[[1,1],[2,2],[4,1],[5,3]],
+         [[0,2],[3,3],[6,2]],[[0,1],[1,2],[3,1],[4,4]],[[0,2],[2,1],[3,1],[4,2],[6,2]],[[0,3],[3,3],[6,2]],
+         [[2,2],[4,2],[6,2]],[[0,1],[1,1],[2,1],[3,1],[4,2],[6,2]],[[0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,2]],
+         [[0,2],[2,1],[3,2],[5,1],[6,1],[7,1]],[[0,4],[4,2],[6,2]],[[0,6],[6,1],[7,1]]]
+      : [[[0,2],[2,2],[4,2]],[[0,3],[3,1],[4,2]],[[0,1],[1,1],[2,4]],[[0,2],[2,1],[3,3]],[[1,1],[2,2],[4,2]],
+         [[0,1],[1,1],[2,1],[3,1],[4,2]],[[0,4],[4,2]],[[0,2],[2,1],[3,1],[4,1],[5,1]]];
+    const END=P.beats===4
+      ? [[[0,2],[2,2],[4,4]],[[0,3],[3,1],[4,4]],[[0,6]],[[0,2],[2,6]],[[0,1],[1,1],[2,6]]]
+      : [[[0,2],[2,4]],[[0,6]],[[0,3],[3,3]],[[0,1],[1,1],[2,4]]];
+    // 音数で動機の候補を絞る（少ないほど長い音、多いほど細かい）
+    const want=1.8+mel.dens/100*(P.beats===4?5.4:3.6);
+    const near=LIB.slice().sort((a,b)=>Math.abs(a.length-want)-Math.abs(b.length-want)).slice(0,5);
+    const pickR=list=>list[Math.floor(rng()*list.length)];
+    const rhyM=pickR(near), rhyN=pickR(near.filter(r=>r!==rhyM).concat([rhyM]));
+    const shape=r=>{ const c=[0]; for(let k=1;k<r.length;k++) c.push(c[k-1]+nextStep()); return c; };
+    const shM=shape(rhyM), shN=shape(rhyN);
+    // 尻尾を折り返した形（同じリズムで、最後の2音だけ逆へ）
+    const shM2=shM.map((x,k)=>k>=shM.length-2&&shM.length>=3?2*shM[shM.length-3]-x:x);
+    const FORMS=[
+      [['M',0],['M',1],['M',0],['Q'],['M',0],['M',1],['N',0],['E']],
+      [['M',0],['N',0],['M',0],['Q'],['M',0],['N',0],['M',-1],['E']],
+      [['M',0],['M2',0],['N',1],['Q'],['M',0],['M2',0],['N',-1],['E']],
+      [['M',0],['M',-1],['M',-2],['Q'],['M',0],['M',-1],['N',0],['E']],
+      [['M',0],['M',2],['N',0],['Q'],['M',0],['M',2],['M2',1],['E']]];
+    const form=pickR(FORMS);
+    const rhyQ=pickR(END), rhyE=pickR(END);
+    const ARC=[0,0,1,1,1,2,1,0];
+    const scPcs=fixedPcs||SCALE_SET.diatonic(P.minor).map(i=>i+P.tonic+key);
+    const sc=notesInRange(scPcs,lo,hi);
+    const a0=Math.floor(sc.length*0.42);
+    const tonesAt=p=>{ const c=chordAt(p); return QUAL[c[1]].map(i=>pcOf2(c[0]+key+i)); };
+    const snap=(i,p,root)=>{
+      // いちばん近い和音の音（決まった音階なら、その音階に入っている和音の音）
+      const ts=root?[tonesAt(p)[0]]:tonesAt(p);
+      for(let d=0;d<=3;d++) for(const j of [i-d,i+d]) if(j>=0&&j<sc.length&&ts.includes(pcOf2(sc[j]))) return j;
+      return i;
+    };
+    const clampI=i=>Math.max(0,Math.min(sc.length-1,i));
+    const put=(at,d8,i,vel)=>{
+      const note=sc[i];
+      ev.push({kind:'lead',layer:'main',p8:at,d8,note,vel});
+      if(mel.octUp && note+12<=103) ev.push({kind:'lead',layer:'oct',p8:at,d8,note:note+12,vel:vel*.42});
+      if(mel.harm && i>=2) ev.push({kind:'lead',layer:'harm',p8:at,d8,note:sc[i-2],vel:vel*.52});
+    };
+    for(let b=0;b<bars;b++){
+      const sec=Math.floor(b/16), ph=b%8, half=Math.floor((b%16)/8), base=b*EPB;
+      const [kind,seq]=form[ph];
+      const anchor=a0+ARC[ph]+(sec%2===1?2:0)+(seq||0);
+      if(kind==='Q'||kind==='E'){
+        // 終わりの小節：最後の音へ順に歩いて着く。前半の8小節は問い（3度か5度で止まる）、後半は答え（根音に着く）
+        const rhy=kind==='E'?rhyE:rhyQ;
+        const lastP=base+rhy[rhy.length-1][0];
+        const answer=kind==='E'&&half===1;
+        const tgt=snap(clampI(answer?a0-1:anchor+1),lastP,answer);
+        const dir=rng()<.6?1:-1;
+        rhy.forEach(([p,d],k)=>{
+          const i=clampI(tgt+dir*(rhy.length-1-k));
+          const at=base+p;
+          const j=(k===0||k===rhy.length-1)?snap(i,at,k===rhy.length-1&&answer):i;
+          put(at,Math.min(d,EPB-p),j,(p%2===0?.7:.56)+(k===rhy.length-1?.04:0));
+        });
+        continue;
+      }
+      const rhy=kind==='N'?rhyN:rhyM, shp=kind==='N'?shN:kind==='M2'?shM2:shM;
+      rhy.forEach(([p,d],k)=>{
+        // 1音目以外は、ときどき休む（形は崩さない程度）
+        if(k>0 && rng()<restP*.25) return;
+        const at=base+p;
+        let i=clampI(anchor+shp[k]);
+        const strong=(p%(P.beats===4?4:6)===0)||d>=3||k===0;
+        // 和音の音の半音上（ぶつかる音）に2拍ぶん以上いるのも避ける
+        const rub=d>=2&&tonesAt(at).includes(pcOf2(sc[i]-1));
+        if(strong||rub) i=snap(i,at,false);
+        put(at,Math.min(d,EPB-p),i,(p%2===0?.72:.56)+(p===0?.05:0)+rng()*.06);
+      });
+    }
+  } else {
   /* --- main melody --- */
   const contourCache={};
   let prevIdx=null;
   for(let s=0;s<sections;s++){
-    const plan=(P.plan==='minimal'?MIN_PLANS:PLANS)[s%PLANS.length];
+    const plan=(planKind==='minimal'?MIN_PLANS:PLANS)[s%PLANS.length];
     for(let ph=0;ph<8;ph++){
       const role=plan[ph], rhy=RHY[P.beats][role], barBase=s*16+ph*2;
       if(!contourCache[role]){
@@ -432,7 +784,7 @@ export function buildSong(st){
       }
       const contour=contourCache[role];
       for(let k=0;k<rhy.length;k++){
-        const p8=rhy[k], ch=chords[barBase+Math.floor(p8/EPB)];
+        const p8=rhy[k], ch=chordAt(barBase*EPB+p8);
         const pl=poolAt(ch,lo,hi);
         if(prevIdx===null) prevIdx=Math.floor(pl.length*0.45);
         let idx=prevIdx+contour[k];
@@ -457,6 +809,7 @@ export function buildSong(st){
       }
     }
   }
+  }
 
   /* --- counter line: sparse, an octave below, answering in the gaps --- */
   if(mel.counter){
@@ -467,7 +820,7 @@ export function buildSong(st){
       for(const p8 of CR){
         const at=b*EPB+p8;
         if(at>=total) continue;
-        const ch=chords[b+Math.floor(p8/EPB)];
+        const ch=chordAt(b*EPB+p8);
         const pl=poolAt(ch,cl,chh);
         if(cIdx===null) cIdx=Math.floor(pl.length*0.5);
         if(rng()<0.45) continue;
@@ -495,12 +848,83 @@ export function buildSong(st){
   const barInfo=[];
   let prevVc=null;
   let prevRoot=null;
+  // 小節の途中で和音が変わるとき（コードのゆらぎ）：その拍から後ろのベースと伴奏を新しい和音へ移す。
+  // ベースは和音の何度の音だったかを保って移し、またいで伸びている音はそこで切って弾き直す
+  const pcOf=m=>((m%12)+12)%12;
+  const bassClamp=n=>{ while(n>62) n-=12; while(n<28) n+=12; return n; };
+  const mapTone=(n,c1,c2)=>{
+    const q2=QUAL[c2[1]].map(i=>i%12), idx=QUAL[c1[1]].map(i=>i%12).indexOf(pcOf(n-c1[0]-key));
+    if(idx<0) return n;
+    const want=pcOf(c2[0]+key+q2[Math.min(idx,q2.length-1)]);
+    for(let d=0;d<=6;d++){ if(pcOf(n-d)===want) return n-d; if(pcOf(n+d)===want) return n+d; }
+    return n;
+  };
+  const rootNear=(n,c)=>{ const lo=n-pcOf(n-c[0]-key); return bassClamp(n-lo>6?lo+12:lo); };
+  /* riff：タネで2小節のリフ（リズム＋和音の何度の音か）を1つ作り、和音に合わせて移して回す。
+     8小節の終わりの2小節は、同じリズムで音だけ選び直した変化形 */
+  let riff=null;
+  if(st.bassStyle==='riff'){
+    const rr=mulberry32((st.seed*29+0x4B1D)|0);
+    const LIB=P.beats===4
+      ? [[0,3,6,8,11,14],[0,2,3,6,8,10,11,14],[0,3,4,7,8,11,12,14,15],[0,1,4,6,8,9,12,14],
+         [0,3,5,8,10,13,15],[0,2,5,6,8,11,13,14],[0,3,6,7,8,10,11,14,15]]
+      : [[0,3,4,6,9,10],[0,2,3,6,8,9,11],[0,3,5,6,9,11],[0,1,4,6,7,10]];
+    const hits=LIB[Math.floor(rr()*LIB.length)], span=2*EPB;
+    const ROLES=['R','R','R','5','8','5','b7','3','6'];
+    const roles=()=>hits.map((p,i)=>{
+      if(p%EPB===0) return 'R';
+      if(i===hits.length-1 && p>=span-2) return 'app';
+      let r=ROLES[Math.floor(rr()*ROLES.length)];
+      return r;
+    });
+    const durs=hits.map((p,i)=>{ const nx=i<hits.length-1?hits[i+1]:span; let d=Math.min(3,nx-p); if(d>1&&rr()<.4) d=1; return d; });
+    riff={hits,durs,a:roles(),b:roles()};
+  }
+  const riffNote=(role,root,bq,nRoot,rr)=>{
+    switch(role){
+      case '5': return root+bq[2];
+      case '8': return root+12<=55?root+12:root+bq[2];
+      case '3': return root+bq[1];
+      case 'b7': return root+(bq[3]%12===0?bq[2]:bq[3]%12);
+      case '6': return root+(bq[1]===3?bq[2]:bq[2]+2);
+      case 'app': return nRoot+(rr<.5?-1:1);
+      default: return root;
+    }
+  };
+  /* line：小節の頭は根音、そこから音階をたどって次の和音の根音へ歩く。和音が変わらないなら分散和音で回る */
+  const scaleBass=notesInRange(SCALE_SET.diatonic(P.minor).map(i=>i+P.tonic+key),28,62);
+  const splitBar=(b,from)=>{
+    const base=b*EPB;
+    for(let q=1;q<BEATS;q++){
+      const c1=slots[b*BEATS+q-1], c2=slots[b*BEATS+q];
+      if(c1[0]===c2[0]&&c1[1]===c2[1]) continue;
+      const at=base+q*2, vc2=voicing(c2[0]+key,c2[1],55,74), add=[];
+      for(let i=from;i<ev.length;i++){
+        const e=ev[i];
+        if(!(e.kind==='chord'||(e.kind==='bass'&&!pedal))) continue;
+        const end=e.p8+e.d8;
+        // 変わり目ちょうどの音は新しい和音の根音、その後ろは何度の音だったかを保って移す
+        if(e.p8===at && e.kind==='bass') e.note=rootNear(e.note,c2);
+        else if(e.p8>=at){ if(e.kind==='bass') e.note=bassClamp(mapTone(e.note,c1,c2)); else e.notes=vc2.slice(); }
+        else if(end>at){
+          e.d8=at-e.p8;
+          let taken=false; for(let j=from;j<ev.length;j++) if(ev[j].kind===e.kind&&ev[j].p8===at) taken=true;
+          if(!taken) add.push(e.kind==='bass'
+            ? {kind:'bass',p8:at,d8:end-at,note:rootNear(e.note,c2),vel:e.vel*.85}
+            : {kind:'chord',p8:at,d8:end-at,notes:vc2.slice(),vel:e.vel*.9});
+        }
+      }
+      ev.push(...add);
+    }
+  };
   for(let b=0;b<bars;b++){
-    const ch=chords[b], nx=chords[(b+1)%bars], base=b*EPB;
-    const root=nearRoot(ch[0]+key,prevRoot); prevRoot=root;
-    const third=root+QUAL[ch[1]][1], fifth=root+7;
-    const nRoot=nearRoot(nx[0]+key,root);
-    barInfo.push({root,nRoot,third,fifth:root+QUAL[ch[1]][2],sev:root+QUAL[ch[1]][3]});
+    const ch=chords[b], nx=chords[(b+1)%bars], base=b*EPB, evStart=ev.length;
+    // ペダル：和音が変わってもベースは主音に居座る（上の和音だけが動く）。構成音は主音の3和音＋7度
+    const bq=pedal?(P.minor?[0,3,7,10]:[0,4,7,11]):QUAL[ch[1]];
+    const root=nearRoot((pedal?P.tonic:ch[0])+key,prevRoot); prevRoot=root;
+    const third=root+bq[1], fifth=root+7;
+    const nRoot=nearRoot((pedal?P.tonic:nx[0])+key,root);
+    barInfo.push({root,nRoot,third,fifth:root+bq[2],sev:root+bq[3]});
 
     if(st.bassStyle==='whole'){
       ev.push({kind:'bass',p8:base,d8:EPB,note:root,vel:.7});
@@ -539,6 +963,44 @@ export function buildSong(st){
         : [[0,root,.9,2,1],[3,root+12,.66,1,1],[4,sev,.58,1,.55+.35*dens],[5,nRoot+(rng()<.5?-1:1),.42,1,.5+.3*dens]];
       for(const [p,n,v,d,pr] of pat)
         if(pr>=1||rng()<pr) ev.push({kind:'bass',p8:base+p,d8:d,note:n,vel:v});
+    }else if(st.bassStyle==='heartbeat'){
+      // ドッ・ドッ、と2連打だけ。4/4は1拍目と3拍目、3/4は1拍目だけ
+      (P.beats===4?[0,MID]:[0]).forEach(p=>{
+        ev.push({kind:'bass',p8:base+p,d8:1,note:root,vel:.82});
+        ev.push({kind:'bass',p8:base+p+1,d8:1,note:root,vel:.5});
+      });
+    }else if(st.bassStyle==='riff'){
+      const half=(b%2)*EPB, alt=(b%8>=6);
+      riff.hits.forEach((p,i)=>{
+        if(p<half||p>=half+EPB) return;
+        const n=riffNote((alt?riff.b:riff.a)[i],root,bq,nRoot,rng());
+        ev.push({kind:'bass',p8:base+p-half,d8:riff.durs[i],note:bassClamp(n),vel:(p-half)===0?.88:(p%2?.6:.7)});
+      });
+    }else if(st.bassStyle==='line'){
+      // 頭は根音、最後の音は次の根音の隣（音階の隣か半音）から入る。間は離れていれば音階を歩き、
+      // 近ければ和音の音（3度・5度・オクターブ）を回る
+      const pts=P.beats===4?(rng()<.2+.3*dens?[0,2,4,6,7]:[0,2,4,6]):[0,2,4];
+      const ix=n=>{ let k=0; for(let i=0;i<scaleBass.length;i++) if(Math.abs(scaleBass[i]-n)<Math.abs(scaleBass[k]-n)) k=i; return k; };
+      const n=pts.length, i0=ix(root);
+      let tgt=nRoot; if(Math.abs(tgt-root)>7) tgt+=tgt>root?-12:12;
+      const i1=ix(tgt), far=Math.abs(i1-i0)>=n;
+      let prev=null;
+      const FIG=[[bq[1],bq[2]],[bq[2],12],[bq[2],bq[1]],[12,bq[2]],[bq[1],bq[2],12]];
+      const fig=FIG[(b+Math.floor(rng()*FIG.length))%FIG.length];
+      pts.forEach((p,k)=>{
+        let note;
+        if(k===0) note=root;
+        else if(k===n-1){
+          const from=i1>i0?-1:1;
+          note=rng()<.3?tgt+from:scaleBass[Math.max(0,Math.min(scaleBass.length-1,i1+from))];
+          if(note===tgt) note=tgt+from;
+        }else if(far) note=scaleBass[Math.max(0,Math.min(scaleBass.length-1,Math.round(i0+(i1-i0)*k/(n-1))))];
+        else note=root+fig[(k-1)%fig.length];
+        if(note===prev) note=k===n-1?prev+(tgt>prev?2:-2):(note===root+bq[2]?root+12:root+bq[2]);
+        prev=note;
+        const d=(k<n-1?pts[k+1]:EPB)-p;
+        ev.push({kind:'bass',p8:base+p,d8:d,note:bassClamp(note),vel:k===0?.84:(p===MID?.7:.6)});
+      });
     }else if(st.bassStyle==='walk'){
       [[0,root],[2,third],[MID,fifth],[EPB-1,nRoot+(rng()<.5?-1:1)]].forEach(([p,n])=>{
         if(p<EPB) ev.push({kind:'bass',p8:base+p,d8:2,note:n,vel:p===0?.85:.62});
@@ -645,6 +1107,7 @@ export function buildSong(st){
       for(let p=0;p<EPB;p+=2) ev.push({kind:'shaker',p8:base+p,vel:p===0?.4:.24});
       ev.push({kind:'rim',p8:base+MID,vel:.34});
     }
+    if(slots) splitBar(b,evStart);
   }
   if(bArr>0) arrangeBass(ev,barInfo,bArr,rngB,EPB,MID);
   let fillBars=null;
@@ -673,7 +1136,7 @@ export function buildSong(st){
     ev.length=0; ev.push(...out);
   }
   ev.sort((a,b)=>a.p8-b.p8);
-  return {events:ev,chords,bars,beats:P.beats,epb:EPB,key};
+  return {events:ev,chords,slots,bars,beats:P.beats,epb:EPB,key};
 }
 
 /* nearest re-voicing of `tones` to the previous chord: common tones stay put,
@@ -1141,14 +1604,15 @@ export function clashScore(song){
 export const OMAKASE={
   preset:{nonbiri:1,fuwafuwa:0,pokopoko:2,yofukashi:1,oudou:2,omise:1,canon:1,dorian:1,lydian:0,
     mixo:1,mokumoku:1,waltz:1,sway:0,blue:1,chip:2,ambi:0,kurikaeshi:1,longrun:2,midnight:2,
-    neon:2,funk:2,mellow:1,dosshiri:0,minimal:1,hiphop:1,dnb:2,breakbeat:2,trance:2,hardcore:2},
+    neon:2,funk:2,mellow:1,dosshiri:0,minimal:1,hiphop:1,dnb:2,breakbeat:2,trance:2,hardcore:2,
+    uramen:1,shinen:0,uneri:1,hoshizora:0,ginga:1,oozora:0,mugen:0,boss:2,kougeki:2},
   lead:{marimba:[0,1,2],box:[0,1],vibes:[0,1],kalimba:[0,1,2],pluck:[1,2],rhodes:[0,1,2],
     whistle:[0,1],toy:[2],synth:[2],bell:[0,1],glock:[0,1,2],flute:[0,1],steel:[1,2],harp:[0,1],brass:[1,2],
     saw:[2],supersaw:[2],square:[1,2],organ:[1,2],grit:[2],bow:[0,1]},
   pad:{vibes:[0,1,2],pad:[0,1],organ:[1,2],guitar:[1],stab:[2],strings:[0,1],piano:[0,1,2],
     choir:[0,1],chip:[2],clav:[2],supersaw:[2],warm:[0,1],square:[2],epiano:[0,1,2],brass:[1,2]},
   bass:{two:[1],walk:[1],bounce:[1,2],whole:[0,1],offbeat:[2],pulse:[2],octave:[2],synco:[1,2],
-    arp:[0,1],funk:[2]},
+    arp:[0,1],funk:[2],heartbeat:[0,1],riff:[1,2],line:[0,1]},
   kit:{brush:[1],pop:[2],night:[0,1],tick:[0,1],none:[0,1],four:[2],halftime:[0,1,2],bossa:[1],
     breaks:[2],soft:[0,1],funk:[2],house:[2],disco:[2],funk16:[1,2],boombap:[1,2],lofi:[0,1],
     rock:[2],twostep:[1,2],onedrop:[0,1],samba:[1,2],march:[1,2],jazz:[0,1],trap:[1,2],chipdrum:[2],afro:[1,2],
@@ -1159,6 +1623,17 @@ export const OMAKASE={
   // scales that ignore the chords entirely stay out of the dice
   noDice:['wholetone']
 };
+/* 拍子を上書きしたときに、4拍子専用のドラムとベースを3拍子でも鳴る型へ差し替える。
+   ドラムはおまかせの勢い（0〜2）の平均が近いものにする */
+export function fitMeter(st){
+  if(presetOf(st).beats===4) return st;
+  if(OMAKASE.only4.kit.includes(st.drums)){
+    const en=OMAKASE.kit[st.drums]||[1], avg=Math.round(en.reduce((a,b)=>a+b,0)/en.length);
+    st.drums=['tick','brush','pop'][avg];
+  }
+  if(OMAKASE.only4.bass.includes(st.bassStyle)) st.bassStyle='two';
+  return st;
+}
 export function scaleLimit(preset){
   // how much rub the foundation's own scale already has (blues / funk rub on purpose)
   const P=PRESETS[preset]; let t=0;

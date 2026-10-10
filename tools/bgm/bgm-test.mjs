@@ -12,13 +12,15 @@
     range     全曲調×全ドラム×全音階（ベースは巡回）で、ループ外・音域外・長さ0・NaN がない
     starts    単音の楽器（ベースと全ドラム）で同じ瞬間の発音がない（Tone.js が書き出しで止まる原因）
     omakase   おまかせ1000件のぶつかり度が曲調の上限以内、3拍子に4拍子専用ドラムなし
+    editor    エディタだけの設定（plan / pedal / chordMotion / harmVary / st.slots）でも range・starts が通る
+    meter     全曲調を拍子の上書き（st.beats 3 / 4）で作っても range・starts が通り、3拍子に4拍子専用ドラムなし
 */
 import fs from 'node:fs'; import path from 'node:path'; import vm from 'node:vm'; import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
 
 const NAMES='PRESETS,PROGS,LEADS,PADS,BASSES,KITS,SCALES,MOOD_KEYS,LEAD_KEYS,PAD_KEYS,BASS_KEYS,KIT_KEYS,SCALE_KEYS,'+
-  'GROUP,buildSong,encodeRecipe,decodeRecipe,prettyCode,buildMidi,clashScore,omakase,scaleLimit,OMAKASE,posOf,playableEvents';
+  'GROUP,buildSong,encodeRecipe,decodeRecipe,prettyCode,buildMidi,clashScore,omakase,scaleLimit,OMAKASE,posOf,playableEvents,presetOf,fitMeter';
 async function loadEngine(p){
   if(/\.m?js$/.test(p)){ const m=await import(path.resolve(p)); return m.default||m; }
   const s=fs.readFileSync(p,'utf8');
@@ -60,7 +62,9 @@ const CODES=['0ASFDP-DF84AR-5HJF3P-4BR7R','0UB7W4Q-TUUYLA9-FTAM93V-VWLLC','2HPLF
   'A5MBXU5XA-ZCCYKEHRF-HX10TJJYP-DYBJ93Y5J-0VYUWZ21Q','A68KEXJBN-3VUBGXNSV-746R14U80-2SQPOHHHH-YTLHHS8X9',
   'A6FL091XO-N1E841I6P-YSULVA9YE-MIQ29KFLR-EZPOW66NW','A407FO9QB-0H0P3EC98-EJNRZJEQL-5XFROHGIL-8L6Y8KU8U',
   'A50P5MEMX-B6M5L04BK-LFDDDQ28L-FSB14QFJY-EPDHD8KQO'];
-/* GOLDEN_BEGIN — 2026-10-01 v7 で記録（random500 は 2026-10-06 に曲調6つ・キット5つ、2026-10-07 に音色11個を足して更新） */
+/* GOLDEN_BEGIN — 2026-10-01 v7 で記録（random500 は 2026-10-06 に曲調6つ・キット5つ、2026-10-07 に音色11個、
+   2026-10-08 に曲調3つ・ベース2つ・音階2つを足して更新。旧来の曲調×ベース×音階×タネ 9570件は旧エンジンと完全一致を確認。
+   同日さらにベース2つ（riff・line）と曲調2つ（boss・kougeki）を足し、うらめんを作り直して更新。うらめん以外の 8470件は一致を確認） */
 const GOLDEN={
   "codes": {
     "0ASFDP-DF84AR-5HJF3P-4BR7R": "6a8be5e7ab9e973a",
@@ -87,7 +91,7 @@ const GOLDEN={
     "A407FO9QB-0H0P3EC98-EJNRZJEQL-5XFROHGIL-8L6Y8KU8U": "720f9fdade158569",
     "A50P5MEMX-B6M5L04BK-LFDDDQ28L-FSB14QFJY-EPDHD8KQO": "cac86f563e140242"
   },
-  "random500": "996aec39cc4f72cd"
+  "random500": "ddebcf8832cc2fd3"
 };
 /* GOLDEN_END */
 
@@ -162,6 +166,34 @@ function checkStarts(E,st){
     for(const c of CODES){ const r=E.decodeRecipe(c), x=checkStarts(E,base(E,r.preset,r)); if(x){ e=c+' '+x; break; } }
     for(let i=0;i<800&&!e;i++){ const st=randomState(E,R); st.drums=E.KIT_KEYS[i%E.KIT_KEYS.length]; const x=checkStarts(E,st); if(x) e='random '+i+' '+x; n++; }
     e?ng('starts',e):ok('starts','コード全部 + ランダム'+n+'件'); }
+
+  // editor：エディタだけの設定（反復の型・主音固定・和音の動き・コードのゆらぎ）でも range と starts が通る。
+  // あわせて、ゆらぎの和音が同じ設定なら同じになること、st.slots で渡した和音がそのまま使われることも見る
+  { const R=mulberry(7); let e=null,n=0;
+    const r=a=>a[Math.floor(R()*a.length)];
+    for(let i=0;i<1500&&!e;i++){
+      const st=randomState(E,R);
+      Object.assign(st,{plan:r(['motif','free','minimal','ostinato','arp']),pedal:r([null,true,false]),
+        chordMotion:r(['auto','auto','half','quarter','hold']),harmVary:Math.floor(R()*101),harmSeed:1+Math.floor(R()*99999),
+        bassStyle:i%3?r(['riff','line']):st.bassStyle});
+      const c=checkSong(E,st)||checkStarts(E,st); if(c){ e=st.preset+'/'+st.plan+'/'+st.bassStyle+': '+c; break; }
+      const a=E.buildSong(st), b=E.buildSong(Object.assign({},st,{slots:a.slots,harmVary:0}));
+      if(JSON.stringify(a.events)!==JSON.stringify(b.events)) e='slots で同じ曲にならない: '+st.preset;
+      n++; }
+    e?ng('editor',e):ok('editor',n+'件'); }
+
+  // meter：曲調の拍子を st.beats で上書きする（エディタの「拍子」）
+  { const R=mulberry(34); let e=null,n=0;
+    const r=a=>a[Math.floor(R()*a.length)];
+    for(const k of Object.keys(E.PRESETS)) for(const beats of [3,4]) for(let i=0;i<12&&!e;i++){
+      const st=E.fitMeter(Object.assign(randomState(E,R),{preset:k,drums:E.PRESETS[k].drums,bassStyle:E.PRESETS[k].bass,beats,
+        plan:r([undefined,'motif','free','minimal','ostinato','arp']),harmVary:i%2?Math.floor(R()*101):0}));
+      const s=E.buildSong(st);
+      if(s.beats!==beats) e=k+': 拍子が '+s.beats;
+      else if(beats===3&&(E.OMAKASE.only4.kit.includes(st.drums)||E.OMAKASE.only4.bass.includes(st.bassStyle))) e=k+': 4拍子専用 '+st.drums+'/'+st.bassStyle;
+      else { const c=checkSong(E,st)||checkStarts(E,st); if(c) e=k+'/'+beats+'/'+st.plan+'/'+st.drums+': '+c; }
+      n++; }
+    e?ng('meter',e):ok('meter',n+'件'); }
 
   // omakase
   { const R=mulberry(3), lim={}; let over=0,meter=0;
