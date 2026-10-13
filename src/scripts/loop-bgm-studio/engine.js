@@ -23,17 +23,22 @@ export const QUAL={
   m7b5:[0,3,6,10], sus9:[0,5,7,10,14], dom7s9:[0,4,7,10,15],
   // 2026-10-08 追加（ダーク・シネマティック向け）：min は素の短3和音（ラインクリシェの出発点）、
   // mM7 はその7度が半音下がった形。どちらも暗いだけで濁らない
-  min:[0,3,7,12], mM7:[0,3,7,11]
+  min:[0,3,7,12], mM7:[0,3,7,11],
+  // 2026-10-11 追加（エディタの作曲 composer.js 向け）：素の長3和音・sus4・add9。4つ目は min と同じく、
+  // 7度の代わりにオクターブ（または9度）を置いて、4音を前提にした処理がそのまま通るようにしてある
+  maj:[0,4,7,12], sus4:[0,5,7,12], add9:[0,4,7,14], madd9:[0,3,7,14]
 };
 export const EXT={
   maj7:[2,9], maj9:[2,9], six:[2,11], m7:[2,5], m9:[2,5], m6:[2,5],
   dom7:[2,9], dom9:[2,9], dom13:[2,9], m7b5:[1,8], sus9:[2,9], dom7s9:[3,8],
-  min:[2,5], mM7:[2,5]
+  min:[2,5], mM7:[2,5],
+  maj:[2,9], sus4:[2,9], add9:[2,9], madd9:[2,5]
 };
 export const SUF={maj7:'M7',maj9:'M9',six:'6',m7:'m7',m9:'m9',m6:'m6',dom7:'7',dom9:'9',
   dom13:'13',m7b5:'m7\u266d5',sus9:'9sus',dom7s9:'7#9',
-  min:'m',mM7:'mM7'};
-export const MINOR_Q={m7:1,m9:1,m6:1,m7b5:1,min:1,mM7:1};
+  min:'m',mM7:'mM7',
+  maj:'',sus4:'sus4',add9:'add9',madd9:'m(add9)'};
+export const MINOR_Q={m7:1,m9:1,m6:1,m7b5:1,min:1,mM7:1,madd9:1};
 export function midiName(m){ return PC[((m%12)+12)%12]+(Math.floor(m/12)-1); }
 /* Spell chord roots the way a musician would: flats unless we're in a sharp key. */
 export const PCF=["C","D\u266d","D","E\u266d","E","F","G\u266d","G","A\u266d","A","B\u266d","B"];

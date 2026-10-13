@@ -28,7 +28,7 @@ const description =
           <button id="btnNew" type="button" class="hw icon" aria-label="新規作成" title="新規作成（ぜんぶリセットして、ジャンルから作る）">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M15 4H5V20H19V8H15V4ZM3 2.9918C3 2.44405 3.44749 2 3.9985 2H16L20.9997 7L21 20.9925C21 21.5489 20.5551 22 20.0066 22H3.9934C3.44476 22 3 21.5447 3 21.0082V2.9918ZM11 11V8H13V11H16V13H13V16H11V13H8V11H11Z"/></svg>
           </button>
-          <button id="btnHist" type="button" class="hw icon" aria-label="過去の曲" title="過去の曲（新規作成の前の曲を、このブラウザに自動で残してある）">
+          <button id="btnHist" type="button" class="hw icon" aria-label="過去の曲" title="過去の曲（作った曲は、このブラウザに自動で残してある）">
             <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C6.47715 22 2 17.5228 2 12H4C4 16.4183 7.58172 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C9.25022 4 6.82447 5.38734 5.38451 7.50024L8 7.5V9.5H2V3.5H4L3.99989 5.99918C5.82434 3.57075 8.72873 2 12 2ZM13 7L12.9998 11.585L16.2426 14.8284L14.8284 16.2426L10.9998 12.413L11 7H13Z"/></svg>
           </button>
           <button id="btnLoad" type="button" class="hw icon" aria-label="JSONを読み込む" title="JSONを読み込む（ドラッグ&ドロップでも）">
@@ -128,6 +128,7 @@ const description =
         </div>
       </div>
       <div class="under under2">
+        <div id="brushOpts" class="bopts" hidden></div>
         <div id="pageBar" class="pagebar drum-only">
           <span class="pair">
             <button id="pgPrev" type="button" aria-label="前のページ" title="前のページ（←）">◀</button>
@@ -147,6 +148,17 @@ const description =
           <span class="selops">
             <label class="f"><span>ベロシティ</span><input id="selVel" type="range" min="5" max="100" /><output id="selVelOut"></output></label>
             <span id="selOct" class="pair"><button id="selOctDown" type="button" title="1オクターブ下げる（⇧↓）">−8va</button><button id="selOctUp" type="button" title="1オクターブ上げる（⇧↑）">+8va</button></span>
+            <span class="pair xf" role="group" aria-label="音楽理論で変形">
+              <button type="button" data-xf="up" title="音階にそって1つ上げる（⌥↑）。その位置の和音とぶつかる音は避ける">音階↑</button>
+              <button type="button" data-xf="down" title="音階にそって1つ下げる（⌥↓）">音階↓</button>
+              <button type="button" data-xf="inv" title="最初の音を軸に、上下をひっくり返す（音階の段で数える）">反転</button>
+              <button type="button" data-xf="retro" title="音の高さの並びを後ろから。リズムはそのまま">逆行</button>
+              <button type="button" data-xf="wide" title="最初の音を軸に、長さと間隔を2倍（拡大）">×2</button>
+              <button type="button" data-xf="narrow" title="最初の音を軸に、長さと間隔を半分（縮小）">÷2</button>
+              <button type="button" data-xf="snap" title="強拍と長い音を、その位置の和音の音へ寄せる">和音へ</button>
+              <button type="button" data-xf="pass" title="3度以上離れた音の間を、音階をたどる経過音で埋める">経過音</button>
+              <button type="button" data-xf="harm" title="音階で3度下のハモりを足す（長い音は和音の音に寄せる）">ハモり</button>
+            </span>
             <button id="selQuant" type="button" title="グリッドにそろえる（Q）">クオンタイズ</button>
             <button id="selDup" type="button" title="すぐ後ろに複製（⌘D）">複製</button>
             <button id="selRepeat" type="button" title="選んだ小節ぶんを曲の最後までくり返す（R）">最後までくり返す</button>
@@ -173,9 +185,12 @@ const description =
         <span id="genreStatus" class="dlg-note"></span>
       </div>
       <details class="arr" open>
-        <summary>アレンジ（どの曲調を選んでも、この設定を効かせて作る）</summary>
-        <div id="genreArr" class="dlg-row arr-row"></div>
+        <summary>アレンジ（どの曲調を選んでも、この設定を効かせて作る。「まかせる」は曲調ごとのおすすめ）</summary>
+        <div id="genreArr"></div>
       </details>
+      <h3 class="gsub">新しい曲調</h3>
+      <div id="genreNew" class="genres new"></div>
+      <h3 class="gsub">曲調</h3>
       <div id="genreList" class="genres"></div>
       <details class="more">
         <summary>その他</summary>
@@ -197,7 +212,7 @@ const description =
         <button id="newClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
       </div>
       <p class="new-msg">すべてリセットされます。よろしいですか？</p>
-      <p class="dlg-note">音符・音色・エフェクト・ミキサー・取り消しの履歴がぜんぶ消えて、ジャンル選択から作り直す。いまの曲は「過去の曲」に自動で残るから、あとで開き直せる（このブラウザだけ）。</p>
+      <p class="dlg-note">音符・音色・エフェクト・ミキサー・取り消しの履歴がぜんぶ消えて、ジャンル選択から作り直す。いまの曲は「過去の曲」に残っているから、あとで開き直せる（取り消しの履歴ごと。このブラウザだけ）。</p>
       <div class="new-acts">
         <button id="newSave" type="button" class="hw taupe">その前にダウンロード（JSON）</button>
         <span class="grow"></span>
@@ -211,7 +226,7 @@ const description =
         <h2>過去の曲</h2>
         <button id="histClose" type="button" class="x" aria-label="閉じる"><svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"/></svg></button>
       </div>
-      <p class="dlg-note">新規作成する前の曲が、JSON で保存するときと同じ名前で自動で残っている（このブラウザだけ・新しい順に100曲まで）。開くと、いまの曲もここに残る。</p>
+      <p class="dlg-note">作った曲は、編集するたびに JSON で保存するときと同じ名前で自動で残している（このブラウザだけ・新しい順に100曲まで）。開くと、取り消しの履歴も戻って ⌘Z で戻れる（新しい10曲まで）。</p>
       <div id="histList" class="hist-list"></div>
     </dialog>
 
@@ -234,11 +249,13 @@ const description =
             <dt>表示</dt><dd>ホイールで左右、⇧+ホイールで上下にスクロール。⌘+ホイール（ピンチ）で横、⌥+ホイールで縦の拡大。上の数字の帯をクリックで再生位置。F でオートスクロールのオン・オフ</dd>
             <dt>ベロシティ</dt><dd>いちばん下の帯をなぞると強弱を描ける。ドラムは行の名前をクリックすると、その楽器だけ</dd>
             <dt>再生</dt><dd>スペースで再生・一時停止、Enter で頭に戻る。⌘Z で取り消し</dd>
-            <dt>アレンジ</dt><dd>アレンジブラシ（B）で、選んでいるトラックのなぞった所だけを書き換える。線の高さが音程の目安。⌥ を押しながらなぞるとリズムも作り直す。ドラムは上をなぞるほど手数が多い</dd>
+            <dt>アレンジ</dt><dd>アレンジブラシ（B）で、選んでいるトラックのなぞった所だけを書き換える。線の高さが音程の目安。ブラシの下で、メロディは音階とリズムの型、ベースはリズムと「音階で歩く」、コードは弾き方と響き、ドラムはフィル・ビルドアップ・抜く・リズムの型を選べる。⌥ を押しながらなぞるとリズムも作り直す</dd>
+            <dt>変形</dt><dd>音を選ぶと出るボタンで、音階にそって上下（⌥↑↓）・反転・逆行・×2・÷2・和音へ寄せる・経過音で埋める・3度下のハモり</dd>
+            <dt>作曲</dt><dd>ジャンル選択の「新しい曲調」や、アレンジの「作曲スタイル」で、型から組み立てたメロディにする。強拍は和音の音、非和声音は2度で解決する。「展開」の「ループの中で盛り上げる」（おすすめ）は、伴奏の量はそのままで、メロディが8小節ごとに一段ずつ高くなって最後に頭の高さへ下りてつながり、区切りで和音が速く動き、ベースが歩き、ドラムがフィルを入れる</dd>
             <dt>音色</dt><dd>トラックの行の左のボタンが音色、右がパターン。押すとパネルで選べる。スライダーのアイコンは音作りとパン・リバーブ、ラックのアイコンはエフェクト</dd>
           </dl>
         </div>
-        <p class="dlg-note">編集した曲はこのブラウザにも自動で残る（設定で切れる）。別の端末やあとで使うときは保存ボタンの「JSONで保存」で。音はすべてブラウザの中で合成していて、どこにも送られない。</p>
+        <p class="dlg-note">編集した曲はこのブラウザにも自動で残る（取り消しの履歴ごと。左上の時計のボタンで過去の曲も開ける。設定で切れる）。別の端末やあとで使うときは保存ボタンの「JSONで保存」で。音はすべてブラウザの中で合成していて、どこにも送られない。</p>
     </dialog>
 
     <dialog id="configDlg" class="dlg config-dlg">
@@ -256,7 +273,7 @@ const description =
         <label class="cfg-row"><input type="checkbox" data-cfg="follow" /><span><b>オートスクロール</b><small>再生位置を追いかける（F）</small></span></label>
         <label class="cfg-row"><input type="checkbox" data-cfg="compact" /><span><b>ドラムは使っている行だけ出す</b><small>キック・スネア・ハットは空でも出す</small></span></label>
         <h3>保存</h3>
-        <label class="cfg-row"><input type="checkbox" data-cfg="autosave" /><span><b>ブラウザに自動で残す</b><small>切ると、いま残っている曲も消す。次に開いたときは新しい曲から</small></span></label>
+        <label class="cfg-row"><input type="checkbox" data-cfg="autosave" /><span><b>ブラウザに自動で残す</b><small>編集中の曲と取り消しの履歴を、閉じても残す。切ると、いま開いている曲の自動保存をやめて、次に開いたときは新しい曲から（新規作成の前の曲は「過去の曲」に残す）</small></span></label>
       </div>
     </dialog>
 
@@ -611,6 +628,8 @@ const description =
   .hist-open:hover { background: #262626; }
   .hist-open b { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
   .hist-open span { color: var(--muted); font-size: 11px; }
+  .hist-open i { font-style: normal; font-weight: 400; font-size: 11px; color: var(--muted); margin-left: 8px; }
+  .hist-open:disabled { cursor: default; background: #262626; }
 
   /* ---- 操作のしかた・設定 ---- */
   .help-dlg { width: min(860px, calc(100vw - 32px)); font-size: 12px; color: var(--muted); }
@@ -655,6 +674,16 @@ const description =
   .arr summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
   .arr-row { margin-top: 8px; gap: 8px 16px; }
   .arr-row .f span { color: var(--muted); font-size: 11.5px; }
+  #genreArr h4 { margin: 14px 0 0; font-size: 11px; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .gsub { margin: 18px 0 0; font-size: 12px; color: var(--muted); font-weight: 600; }
+  .gsub + .genres { margin-top: 8px; }
+  .genre.new b::after { content: 'NEW'; margin-left: 6px; font-size: 9px; letter-spacing: .08em; color: var(--red); vertical-align: 2px; }
+  /* アレンジブラシの設定 */
+  .bopts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; color: var(--muted); font-size: 11.5px; width: 100%; }
+  .bopts[hidden] { display: none; }
+  .bopts-t { color: var(--text); font-weight: 600; }
+  .bopts select { max-width: 260px; }
+  .xf button { font-size: 11px; }
   .more { margin: -6px 0 18px; }
   .more summary { cursor: pointer; color: var(--muted); font-size: 12.5px; }
   .more .genres { margin: 10px 0 0; }

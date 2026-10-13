@@ -14,6 +14,7 @@ import * as P from "./project.js";
 import * as S from "./sounds.js";
 import * as F from "./fx.js";
 import * as H from "./history.js";
+import * as CM from "./composer.js";
 
 const { TRACKS, PITCHED, TRACK_INFO, DRUM_ROWS } = P;
 const STORE = 'loop-bgm-editor:v1';
@@ -155,8 +156,10 @@ export function startEditor({ loadTone }) {
     syncStrip(); syncTracks(); syncSel(); draw();
   }
   function saveLocal() {
+    clearTimeout(saveTimer);
     if (!cfg.autosave) return;
     try { localStorage.setItem(STORE, P.toJSON(proj)); } catch (e) { }
+    saveHist();
   }
 
   /* ---------------- audio ---------------- */
@@ -167,7 +170,7 @@ export function startEditor({ loadTone }) {
         const Tn = await loadTone();
         E.useTone(Tn);
         await Tn.start();
-        audio.rig = E.createRig({ pan: true });
+        audio.rig = P.roomy(E.createRig({ pan: true }));
         audio.ready = true;
         applySound(0);
         audio.rig.master.volume.value = E.masterDb(audio.vol);
@@ -1087,16 +1090,18 @@ export function startEditor({ loadTone }) {
        コード   … なぞった高さに和音のてっぺんを合わせて積み直す。音の数と響きはそのまま
        ベース   … なぞった高さに近い、その小節の和音の音へ付け直す。⌥ でリズムも作り直す
        ドラム   … なぞった所のパターンを新しいタネで作り直す。上のほうをなぞるほど手数が多い
+     2026-10-11：ブラシの下に「設定」を出すようにした（音階・リズムの型・弾き方・ドラムの作り方）。
+       メロディは composer.js の composeRegion で、強拍は和音の音・弱拍は音階の経過音・非和声音は2度で解決、と理論どおりに直す
      ※ 以前の「メロディ変更」「ドラマ」はこれにまとめた（2026-10-07）。
      ※ ハネはいまは非表示（2026-10-07）。ずれが小さくてピアノロール・ステップ上で見た目がほとんど
        変わらず「効いてない？」と感じるため。処理は残してあるので、使うときは editor.astro の
        data-tool="hane" ボタンの hidden を外し、キーボードの B の切り替えに 'hane' を足す */
   const TOOLS = ['edit', 'select', 'arrange', 'hane'];
   const ARRANGE_HINT = {
-    lead: 'アレンジブラシ（メロディ）：なぞった線の高さに沿ってメロディを書き換える。リズムはそのまま、⌥ を押しながらなぞるとリズムも作り直す',
-    chord: 'アレンジブラシ（コード）：なぞった高さに和音のてっぺんを合わせる。和音の数と響きはそのまま',
-    bass: 'アレンジブラシ（ベース）：なぞった高さに沿って、和音の音からベースを選び直す。⌥ でリズムも作り直す',
-    drum: 'アレンジブラシ（ドラム）：なぞった所のパターンを作り直す。上のほうをなぞるほど手数が多く、下ほど少なく',
+    lead: 'アレンジブラシ（メロディ）：なぞった線に沿って書き換える。強拍は和音の音、弱拍は下で選んだ音階の経過音。リズムも下で選べる（⌥ で作り直す）',
+    chord: 'アレンジブラシ（コード）：なぞった高さに和音のてっぺんを合わせる。下で弾き方・響きを選ぶと、塗った所だけその形にする',
+    bass: 'アレンジブラシ（ベース）：なぞった高さに沿って選び直す。下でリズムの型と「音階で歩く」を選べる（⌥ で作り直す）',
+    drum: 'アレンジブラシ（ドラム）：下の「作り方」で、作り直す・フィル・ビルドアップ・抜く・リズムの型を選んで塗る',
   };
   const TOOL_INFO = {
     edit: { name: '編集', hint: () => '' },
@@ -1115,6 +1120,7 @@ export function startEditor({ loadTone }) {
     tool = t;
     document.querySelectorAll('[data-tool]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'));
     if (!isBrush()) { hoverPt = null; cv.style.cursor = ''; }
+    syncBrushOpts();
     setStatus(toolHint());
     draw();
   }
@@ -1241,56 +1247,85 @@ export function startEditor({ loadTone }) {
       + (stroke.alt ? '（音型も新しく）' : '（⌥ で音型も作り直す）'));
   }
 
-  /* メロディ：リズムはそのまま（空なら新しいタネで）、音程をなぞった線に沿わせる */
+  /* ---- アレンジブラシの設定（トラックごと。ブラウザに覚える） ---- */
+  const BOPT_DEF = { lead: { scale: 'auto', rhythm: 'keep' }, bass: { rhythm: 'keep', notes: 'chord' }, chord: { style: 'keep', voice: 'keep' }, drum: { mode: 'regen' } };
+  const bopt = {};
+  for (const k of TRACKS) bopt[k] = Object.assign({}, BOPT_DEF[k], (pref('brushOpt', {}) || {})[k] || {});
+  const SCALE_OPTS = [['auto', '曲の設定どおり'], ['chord', 'コードの音だけ'], ['triad', '3和音だけ'], ['diatonic', '音階（7音）'], ['penta', 'ペンタトニック'],
+    ['hexa', '6音'], ['blues', 'ブルース'], ['majblues', 'メジャーブルース'], ['modeUp', 'ひとさじ明るく'], ['modeDown', 'ひとさじ渋く'],
+    ['harmonic', 'エキゾチック'], ['wholetone', '全音音階']];
+  function brushOptFields(k) {
+    if (k === 'lead') return [
+      { id: 'scale', label: '音', opts: SCALE_OPTS, help: 'なぞった線に寄せる音。強拍と長い音はいつも和音の音で、弱拍の経過音がこの音から選ばれる' },
+      { id: 'rhythm', label: 'リズム', opts: [['keep', 'そのまま（⌥ で作り直す）']].concat(Object.entries(CM.STYLES).map(([x, v]) => ['c_' + x, v.name + 'で作り直す'])),
+        help: '作り直すときは、その作曲スタイルのリズムの型から選ぶ' },
+    ];
+    if (k === 'bass') return [
+      { id: 'rhythm', label: 'リズム', opts: [['keep', 'そのまま（⌥ で作り直す）']].concat(Object.entries(E.BASSES).map(([x, v]) => [x, v.name + 'で作り直す'])) },
+      { id: 'notes', label: '音', opts: [['chord', '和音の音だけ'], ['walk', '強拍は和音、弱拍は音階で歩く']] },
+    ];
+    if (k === 'chord') return [
+      { id: 'style', label: '弾き方', opts: [['keep', 'そのまま']].concat(Object.entries(S.CHORD_STYLES).filter(([x]) => x !== 'auto').map(([x, v]) => [x, v.name])) },
+      { id: 'voice', label: '響き', opts: [['keep', 'そのまま']].concat(Object.entries(S.CHORD_VOICES).map(([x, v]) => [x, v.name])) },
+    ];
+    return [{ id: 'mode', label: '作り方', opts: [['regen', '作り直す（上ほど手数が多い）'], ['fill', 'フィル'], ['build', 'ビルドアップ（だんだん細かく）'], ['clear', '抜く（ブレイク）']]
+      .concat(Object.entries(CM.DRUM_PATTERNS).map(([x, v]) => [x, 'リズムの型：' + v.name + (v.beats === 3 ? '（3拍子）' : '')])) }];
+  }
+  function syncBrushOpts() {
+    const box = $('brushOpts');
+    box.hidden = tool !== 'arrange';
+    if (box.hidden) return;
+    box.innerHTML = '<span class="bopts-t">' + TRACK_INFO[cur].name + 'のブラシ</span>' + brushOptFields(cur).map(f =>
+      `<label class="f"${f.help ? ` title="${f.help}"` : ''}><span>${f.label}</span><select data-bopt="${f.id}">`
+      + f.opts.map(([v, n]) => `<option value="${v}">${n}</option>`).join('') + '</select></label>').join('');
+    box.querySelectorAll('select').forEach(el => {
+      const o = bopt[cur], id = el.dataset.bopt;
+      if (![...el.options].some(op => op.value === o[id])) o[id] = el.options[0].value;
+      el.value = o[id];
+      el.addEventListener('change', () => { o[id] = el.value; setPref('brushOpt', bopt); el.blur(); });
+    });
+  }
+  const keyScale = () => CM.scalePcsOf(CM.ctxOf(proj), 'diatonic');
+  const isStrongAt = (t, d) => { const p = mod(t) % epb(); return (proj.beats === 4 ? p % 4 === 0 : p === 0) || (d || 0) >= 2; };
+
+  /* メロディ：なぞった線に沿わせる。強拍・長い音は和音の音、弱拍は選んだ音階の経過音で、非和声音は2度で解決させる。
+     リズムは「そのまま」なら今の音の位置（空なら作曲スタイルの型で新しく）、作曲スタイルを選べばその型で作り直す */
   function brushLead(stroke) {
-    const { cells, inC } = cover(stroke, 1);
+    const { inC } = cover(stroke, 1);
     const at = contour(stroke);
-    const eff = proj.st.plan || E.PRESETS[proj.st.preset].plan || 'free';
-    if (eff === 'ostinato' || eff === 'arp') { brushFigure(stroke, inC, at, eff); return; }
+    const o = bopt.lead, eff = proj.st.plan || E.PRESETS[proj.st.preset].plan || 'free';
+    if ((eff === 'ostinato' || eff === 'arp') && !proj.st.compose && o.rhythm === 'keep') { brushFigure(stroke, inC, at, eff); return; }
     const old = proj.notes.lead.filter(x => inC(x.t));
     const oldMain = old.filter(x => x.l === 'main');
-    // なぞる前の重ね方を覚える（曲調のオクターブ上・ハモリ・裏メロと、自分で積んだ和音）
+    // なぞる前の重ね方を覚える（曲調のオクターブ上・ハモリと、自分で積んだ和音）
     const empty = !old.length, M = proj.st.mel;
-    const has = l => old.some(x => x.l === l) || (empty && M[{ oct: 'octUp', harm: 'harm', counter: 'counter' }[l]]);
-    const layers = { oct: has('oct'), harm: has('harm'), counter: has('counter'), stack: stackShape(oldMain) };
-    const fresh = stroke.alt || !oldMain.length;
-    let rhythm, bestAll = null;
+    const has = l => old.some(x => x.l === l) || (empty && M[{ oct: 'octUp', harm: 'harm' }[l]]);
+    const layers = { oct: has('oct'), harm: has('harm'), stack: stackShape(oldMain) };
+    const fresh = stroke.alt || o.rhythm !== 'keep' || !oldMain.length;
+    let keep = null;
     if (!fresh) {
       // 同じ瞬間に積んだ音は、いちばん上をメロディとして扱う（下は重ね方で付け直す）
       const tops = new Map();
       for (const x of oldMain) { const k = Math.round(x.t * 1000); if (!tops.has(k) || tops.get(k).n < x.n) tops.set(k, x); }
-      rhythm = [...tops.values()].map(x => Object.assign({}, x));
-    } else {
-      const want = Math.max(1, new Set(oldMain.map(x => x.t)).size || Math.round(cells.size * .4));
-      let bd = 1e9;
-      for (let i = 0; i < 8; i++) {
-        const all = buildWith({ seed: newSeed(), mel: Object.assign({}, M, { counter: true }) }).lead;
-        const cand = all.filter(x => x.l === 'main' && inC(x.t));
-        const d = Math.abs(cand.length - want);
-        if (d < bd) { bd = d; rhythm = cand; bestAll = all; }
-        if (!d) break;
-      }
+      keep = [...tops.values()].map(x => ({ t: x.t, d: x.d, v: x.v }));
     }
+    const style = o.rhythm.startsWith('c_') ? o.rhythm.slice(2) : (proj.st.compose || CM.autoStyle(proj.st.preset) || 'uta');
+    const scale = o.scale === 'auto' ? (proj.st.composeScale || (proj.st.compose ? CM.STYLES[proj.st.compose].scale : proj.st.scale)) : o.scale;
+    const line = CM.composeRegion(proj, { inC, at, style, scale, keep, seed: newSeed(), dens: M.dens });
+    if (!line.length) { setStatus('塗った所に音を置けなかった（もう少し長くなぞってみて）'); return; }
     pushUndo();
-    // 裏メロはリズムを作り直したときだけ入れ替える
     proj.notes.lead = proj.notes.lead.filter(x => !inC(x.t) || (!fresh && x.l === 'counter'));
-    for (const x of rhythm) {
-      const tg = at(x.t);
-      if (tg !== null) x.n = nearestIn(poolPcs(x.t), tg, 48, 103);
-      x.l = 'main';
-    }
-    proj.notes.lead.push(...rhythm);
+    proj.notes.lead.push(...line);
     if (fresh) {
-      // 新しい音が次の音にかぶらないように長さを詰める
+      // 新しい音が、塗った所のすぐ後ろの音にかぶらないように長さを詰める
       const main = proj.notes.lead.filter(x => x.l === 'main').sort((a, b) => a.t - b.t);
-      for (const x of rhythm) {
+      for (const x of line) {
         const nx = main.find(y => y.t > x.t + 1e-6);
         if (nx) x.d = Math.max(.25, Math.min(x.d, nx.t - x.t));
       }
     }
-    // 覚えておいた重ね方を付け直す
     const extra = [];
-    for (const x of rhythm) {
+    for (const x of line) {
       if (layers.oct && x.n + 12 <= 103) extra.push({ t: x.t, d: x.d, n: x.n + 12, v: r2(x.v * .42), l: 'oct' });
       if (layers.harm) { const h = poolBelow(x.t, x.n, 2); if (h !== null) extra.push({ t: x.t, d: x.d, n: h, v: r2(x.v * .52), l: 'harm' }); }
       if (layers.stack) for (const off of layers.stack) {
@@ -1298,45 +1333,68 @@ export function startEditor({ loadTone }) {
         if (h !== null) extra.push({ t: x.t, d: x.d, n: h, v: r2(x.v * .85), l: 'main' });
       }
     }
-    if (fresh && layers.counter) for (const x of bestAll) if (x.l === 'counter' && inC(x.t)) extra.push(Object.assign({}, x));
     proj.notes.lead.push(...extra);
     sel.clear();
     changed();
-    setStatus('メロディ ' + rhythm.length + '音を、なぞった線に沿わせた' + (fresh ? '（リズムも新しく）' : '（リズムはそのまま。⌥ でリズムも作り直す）'));
+    const sn = (SCALE_OPTS.find(([v]) => v === scale) || [, scale])[1];
+    setStatus('メロディ ' + line.length + '音を、なぞった線に沿わせた（' + (fresh ? '「' + CM.STYLES[style].name + '」のリズムで新しく' : 'リズムはそのまま')
+      + '・強拍は和音の音、経過音は「' + sn + '」から）');
   }
 
-  /* ベース：なぞった高さにいちばん近い、その小節の和音の音へ */
+  /* ベース：なぞった高さに沿って、強拍は和音の音。「音階で歩く」なら弱拍は音階の音 */
   function brushBass(stroke) {
     const { inC } = cover(stroke, 1);
-    const at = contour(stroke);
+    const at = contour(stroke), o = bopt.bass;
     pushUndo();
     let list = proj.notes.bass.filter(x => inC(x.t));
-    if (!list.length || stroke.alt) {
-      list = buildWith({ seed: newSeed(), bassArr: 30 + Math.floor(Math.random() * 50) }).bass.filter(x => inC(x.t));
+    const fresh = !list.length || stroke.alt || o.rhythm !== 'keep';
+    if (fresh) {
+      const style = o.rhythm !== 'keep' ? o.rhythm : proj.st.bassStyle;
+      list = buildWith({ seed: newSeed(), bassStyle: style, bassArr: 30 + Math.floor(Math.random() * 50) }).bass.filter(x => inC(x.t));
       proj.notes.bass = proj.notes.bass.filter(x => !inC(x.t)).concat(list);
     }
+    const sc = new Set(keyScale());
+    list.sort((a, b) => a.t - b.t);
     for (const x of list) {
       const tg = at(x.t);
       if (tg === null) continue;
       const ch = chordAt(x.t), pcs = new Set(E.QUAL[ch[1]].map(i => (((i + ch[0] + proj.st.key) % 12) + 12) % 12));
-      x.n = nearestIn(pcs, tg, 28, 60);
+      x.n = nearestIn(o.notes === 'walk' && !isStrongAt(x.t, x.d) ? sc : pcs, tg, 28, 60);
     }
     sel.clear();
     changed();
-    setStatus('ベース ' + list.length + '音を、なぞった高さに沿って和音の音から選び直した');
+    setStatus('ベース ' + list.length + '音を、なぞった高さに沿って選び直した' + (fresh ? '（「' + (E.BASSES[o.rhythm] || E.BASSES[proj.st.bassStyle] || { name: 'いまの型' }).name + '」のリズムで）' : ''));
   }
 
-  /* ドラム：なぞった所を新しいタネで。画面の上のほうをなぞるほど手数・フィルが多い */
+  /* ドラム：作り直す（上ほど手数）・フィル・ビルドアップ・抜く・リズムの型 */
   function brushDrum(stroke) {
-    const { inC } = cover(stroke, 1);
-    const e = stroke.pts.reduce((a, p) => a + p.e, 0) / stroke.pts.length;
-    const v = Math.round(10 + 85 * e);
-    const nd = buildWith({ seed: newSeed(), drumBusy: v, drumFill: v, drumPlay: v }).drum.filter(x => inC(x.t));
+    const { inC, cells } = cover(stroke, 1);
+    const mode = bopt.drum.mode;
+    let nd, msg;
+    if (mode === 'regen') {
+      const e = stroke.pts.reduce((a, p) => a + p.e, 0) / stroke.pts.length;
+      const v = Math.round(10 + 85 * e);
+      nd = buildWith({ seed: newSeed(), drumBusy: v, drumFill: v, drumPlay: v }).drum.filter(x => inC(x.t));
+      msg = 'ドラムを作り直した（手数 ' + v + '）。上のほうをなぞるほど細かく、下ほどシンプルに';
+    } else if (mode === 'clear') {
+      nd = []; msg = '塗った所のドラムを抜いた';
+    } else if (mode === 'fill' || mode === 'build') {
+      // 塗った升目のつながりごとに、フィル・ビルドアップを入れる
+      const ids = [...cells].sort((a, b) => a - b), runs = [];
+      for (const c of ids) { const r = runs[runs.length - 1]; if (r && c === r[1]) r[1] = c + 1; else runs.push([c, c + 1]); }
+      nd = runs.flatMap(([a, b]) => CM.drumRoll(mode, a, b));
+      // フィルは塗った所のキック・スネア・タムだけ入れ替え、ハットなどは残す
+      if (mode === 'fill') nd = nd.concat(proj.notes.drum.filter(x => inC(x.t) && !['kick', 'snare', 'clap', 'tom', 'boom'].includes(x.k)));
+      msg = mode === 'fill' ? 'フィルを入れた（短く塗るとタム、長く塗るとスネアの連打）' : 'ビルドアップにした（スネアが4分→8分→16分と細かくなる）';
+    } else {
+      nd = (CM.drumPattern(proj, mode) || []).filter(x => inC(x.t));
+      msg = '塗った所を「' + CM.DRUM_PATTERNS[mode].name + '」にした';
+    }
     pushUndo();
     proj.notes.drum = proj.notes.drum.filter(x => !inC(x.t)).concat(nd);
     sel.clear();
     changed({ rows: true });
-    setStatus('ドラムを作り直した（手数 ' + v + '）。上のほうをなぞるほど細かく、下ほどシンプルに');
+    setStatus(msg);
   }
 
   const r2 = v => Math.round(v * 100) / 100;
@@ -1391,9 +1449,21 @@ export function startEditor({ loadTone }) {
       if (!stacks.has(id)) stacks.set(id, []);
       stacks.get(id).push(x);
     }
+    // 弾き方・響きを選んでいれば、塗った所だけその形で並べ直してから、てっぺんを線に合わせる
+    const o = bopt.chord;
+    let redone = false;
+    if (o.style !== 'keep' || o.voice !== 'keep') {
+      const style = o.style !== 'keep' ? o.style : (proj.st.chordStyle && proj.st.chordStyle !== 'auto' ? proj.st.chordStyle : 'whole');
+      const tmp = Object.assign({}, proj, { st: Object.assign({}, proj.st, o.voice !== 'keep' ? { chordVoice: o.voice } : {}) });
+      const pat = S.chordPattern(tmp, style).filter(x => inC(x.t));
+      pushUndo(); redone = true;
+      proj.notes.chord = proj.notes.chord.filter(x => !inC(x.t)).concat(pat);
+      stacks.clear();
+      for (const x of pat) { const id = Math.round(x.t * 1000); if (!stacks.has(id)) stacks.set(id, []); stacks.get(id).push(x); }
+    }
     const list = [...stacks.values()].sort((a, b) => a[0].t - b[0].t);
     if (!list.length) { setStatus('塗った所にコードの和音がなかった'); return; }
-    pushUndo();
+    if (!redone) pushUndo();
     for (const st of list) {
       st.sort((a, b) => b.n - a.n);
       const pcs = [...new Set(st.map(x => ((x.n % 12) + 12) % 12))];
@@ -1576,6 +1646,30 @@ export function startEditor({ loadTone }) {
     edit(() => { for (const x of sel) { x.t = clamp(snapRound(x.t), 0, end() - g); x.d = Math.max(g, snapRound(x.d)); } });
     setStatus('グリッドにそろえた');
   }
+  /* 音楽理論で変形（composer.js）：音階にそって上下・反転・逆行・拡大縮小・和音へ寄せる・経過音・ハモり */
+  const XF_NAME = { up: '音階で1つ上げた', down: '音階で1つ下げた', inv: '上下を反転した', retro: '逆行にした', wide: '2倍に広げた', narrow: '半分に縮めた',
+    snap: '強拍と長い音を和音の音へ寄せた', pass: '経過音で埋めた', harm: '3度下のハモりを足した' };
+  function transformSel(kind) {
+    if (isDrum()) return;
+    if (!sel.size) { setStatus('先に音を選んで（選択ツール S か ⇧ドラッグ）', true); return; }
+    const list = [...sel], sc = proj.st.composeScale || 'diatonic';
+    let added = [];
+    edit(() => {
+      if (kind === 'up' || kind === 'down') CM.shiftDiatonic(proj, list, kind === 'up' ? 1 : -1, sc);
+      else if (kind === 'inv') CM.invertDiatonic(proj, list, sc);
+      else if (kind === 'retro') CM.retrograde(list);
+      else if (kind === 'wide' || kind === 'narrow') CM.stretch(list, kind === 'wide' ? 2 : .5, end());
+      else if (kind === 'snap') CM.snapChord(proj, list);
+      else if (kind === 'pass') added = CM.fillPassing(proj, list, sc);
+      else if (kind === 'harm') added = CM.harmonyBelow(proj, list, sc);
+      for (const x of list.concat(added)) x.n = clamp(x.n, PMIN, PMAX);
+      proj.notes[cur].push(...added);
+    });
+    for (const x of added) sel.add(x);
+    syncSel(); draw();
+    setStatus(list.length + '音を' + XF_NAME[kind] + (added.length ? '（' + added.length + '音ふえた）' : '') + '（⌘Z で戻せる）');
+  }
+  document.querySelectorAll('[data-xf]').forEach(b => b.addEventListener('click', () => transformSel(b.dataset.xf)));
   function shiftOct(dir) {
     const list = sel.size ? [...sel] : proj.notes[cur];
     const ns = list.map(x => x.n);
@@ -1708,6 +1802,7 @@ export function startEditor({ loadTone }) {
       if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSel(); return; }
       if (k === 'q') { quantizeSel(); return; }
       if (k === 'r') { repeatSel(); return; }
+      if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); transformSel(e.key === 'ArrowUp' ? 'up' : 'down'); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); nudge(0, e.shiftKey ? 12 : 1); return; }
       if (e.key === 'ArrowDown') { e.preventDefault(); nudge(0, e.shiftKey ? -12 : -1); return; }
       if (e.key === 'ArrowLeft') { e.preventDefault(); nudge(-(e.shiftKey ? epb() : grid()), 0); return; }
@@ -2081,6 +2176,7 @@ export function startEditor({ loadTone }) {
     $('grid').value = String(grids[k]);
     $('gridLabel').textContent = k === 'drum' ? 'ステップ' : 'グリッド';
     document.body.dataset.track = k;
+    syncBrushOpts();
     if (tool !== 'edit') setStatus(toolHint());
     syncTracks(); syncSel(); syncPage(); syncStrip(); draw();
   }
@@ -2116,7 +2212,8 @@ export function startEditor({ loadTone }) {
     $('swing').value = proj.st.swing; $('swingOut').textContent = proj.st.swing ? proj.st.swing + '%' : 'オフ';
     $('tone').value = proj.st.tone; $('toneOut').textContent = proj.st.tone;
     $('bars').value = proj.bars;
-    $('genreName').textContent = E.PRESETS[proj.st.preset].label;
+    $('genreName').textContent = (CM.GENRES[proj.st.genre] || E.PRESETS[proj.st.preset]).label
+      + (proj.st.form && proj.st.form !== 'flat' ? '・' + CM.FORMS[proj.st.form].name.replace(/（.*$/, '') + 'の展開' : '');
     $('lenInfo').textContent = P.loopSeconds(proj).toFixed(1) + '秒';
     $('hudBpm').textContent = proj.st.bpm;
     $('hudKey').textContent = KEY_NAMES[proj.st.key].split('/')[0];
@@ -2311,10 +2408,16 @@ export function startEditor({ loadTone }) {
   const presets = Object.entries(E.PRESETS);
   $('genreList').innerHTML = presets.filter(([k]) => !MORE_GENRES.includes(k)).map(genreBtn).join('');
   $('genreMore').innerHTML = presets.filter(([k]) => MORE_GENRES.includes(k)).map(genreBtn).join('');
+  // 新しい曲調（composer.js）：作曲スタイル・展開・リズムの型・音色をまとめたもの
+  $('genreNew').innerHTML = Object.entries(CM.GENRES).map(([k, g]) =>
+    `<button type="button" class="genre new" data-g="${k}"><b>${g.label}</b><span>${g.desc}</span><em data-meter>${meter === 'auto' ? (g.st.beats || 4) : meter}/4・${g.bpm}</em></button>`).join('');
   $('dlgBeats').value = meter;
   $('dlgBeats').addEventListener('change', e => {
     meter = e.target.value; setPref('genreBeats', meter);
-    dlg.querySelectorAll('.genre').forEach(b => { const p = E.PRESETS[b.dataset.k]; b.querySelector('[data-meter]').textContent = beatsOf(p) + '/4・' + p.bpm; });
+    dlg.querySelectorAll('.genre').forEach(b => {
+      const g = CM.GENRES[b.dataset.g], p = g ? { beats: g.st.beats || 4, bpm: g.bpm } : E.PRESETS[b.dataset.k];
+      b.querySelector('[data-meter]').textContent = beatsOf(p) + '/4・' + p.bpm;
+    });
   });
   const genreNote = $('genreNote').textContent;
   // 新規作成から開いたときは、ミキサーも取り消しの履歴も引き継がずにまっさらから作る
@@ -2325,7 +2428,8 @@ export function startEditor({ loadTone }) {
     $('genreNote').textContent = scratch
       ? '曲調を選ぶと、すべてリセットして新しい曲を作る。閉じればいまの曲のまま。'
       : genreNote;
-    dlg.querySelectorAll('.genre').forEach(b => b.setAttribute('aria-pressed', !scratch && b.dataset.k === proj.st.preset ? 'true' : 'false'));
+    const cg = proj.st.genre && CM.GENRES[proj.st.genre] ? proj.st.genre : null;
+    dlg.querySelectorAll('.genre').forEach(b => b.setAttribute('aria-pressed', !scratch && (cg ? b.dataset.g === cg : b.dataset.k === proj.st.preset) ? 'true' : 'false'));
     if (!scratch && MORE_GENRES.includes(proj.st.preset)) dlg.querySelector('.more').open = true;
     $('dlgBars').value = proj.bars;
     $('codeStatus').textContent = ''; $('genreStatus').textContent = '';
@@ -2337,7 +2441,7 @@ export function startEditor({ loadTone }) {
   const dlgSections = () => +$('dlgBars').value / 16;
   function startFrom(st, msg, opt) {
     const o = opt || {}, scratch = fromScratch;
-    if (scratch) { archive(); undoStack = []; redoStack = []; }
+    if (scratch) { newSong(); undoStack = []; redoStack = []; }
     else pushUndo();
     const mix = proj && !scratch ? proj.mix : null;
     const fresh = P.fromState(st, mix);
@@ -2355,19 +2459,35 @@ export function startEditor({ loadTone }) {
   }
 
   /* ---- アレンジ：どの曲調を選ぶときも効かせる設定。ブラウザに覚える ---- */
+  const named = (head, tbl) => Object.assign(head, Object.fromEntries(Object.entries(tbl).map(([k, v]) => [k, { name: v.name }])));
   const ARR_FIELDS = [
+    // 作曲と展開（composer.js）
+    { id: 'compose', g: 'comp', label: '作曲スタイル', table: Object.assign(named({ auto: { name: '曲調まかせ' } }, CM.STYLES), { engine: { name: '前の作り方（エンジン）' } }) },
+    { id: 'form', g: 'comp', label: '展開', table: named({ auto: { name: '作曲スタイルまかせ' } }, CM.FORMS) },
+    { id: 'prog', g: 'comp', label: 'コード進行', table: { auto: { name: 'まかせる（展開があれば作曲）' }, compose: { name: '展開に合わせて作曲する' }, preset: { name: '曲調の進行表' } } },
+    { id: 'color', g: 'comp', label: '和音の色', table: named({ auto: { name: '作曲スタイルまかせ' } }, CM.COLORS) },
+    { id: 'cscale', g: 'comp', label: 'メロディの音階', table: named({ auto: { name: '作曲スタイルまかせ' } }, Object.fromEntries(Object.entries(E.SCALES).filter(([k]) => E.SCALE_SET[k]))) },
+    { id: 'drumPat', g: 'comp', label: 'ドラム', table: named({ auto: { name: 'まかせる' }, kit: { name: '曲調のドラム' } }, CM.DRUM_PATTERNS) },
     { id: 'motion', label: 'コードの動き', table: S.CHORD_MOTIONS },
     { id: 'voice', label: '響き', table: S.CHORD_VOICES },
     { id: 'style', label: '弾き方', table: S.CHORD_STYLES },
     { id: 'pedal', label: 'ベースの土台', table: { auto: { name: '曲調どおり' }, chord: S.BASS_PEDALS.chord, pedal: S.BASS_PEDALS.pedal } },
     { id: 'harm', label: 'コードの変化', table: S.CHORD_VARIES },
     { id: 'bassPlay', label: 'ベースの遊び', table: Object.assign({ auto: { name: '曲調どおり' } }, S.BASS_PLAYS) },
-    { id: 'plan', label: 'メロディの型', table: { auto: { name: '曲調どおり（反復の型でなければ「うた」）' }, motif: { name: 'うた（動機から組む）' }, free: { name: 'ランダムな線（前の作り方）' }, minimal: { name: 'くりかえし' }, ostinato: { name: 'オスティナート' }, arp: { name: '分散和音' } } },
+    { id: 'plan', label: 'メロディの型（前の作り方のとき）', table: { auto: { name: '曲調どおり（反復の型でなければ「うた」）' }, motif: { name: 'うた（動機から組む）' }, free: { name: 'ランダムな線（前の作り方）' }, minimal: { name: 'くりかえし' }, ostinato: { name: 'オスティナート' }, arp: { name: '分散和音' } } },
   ];
-  const ARR_DEF = { motion: 'auto', harm: 'mid', voice: 'std', style: 'auto', pedal: 'auto', bassPlay: 'some', plan: 'auto' };
+  const ARR_DEF = { compose: 'auto', form: 'auto', prog: 'auto', color: 'auto', cscale: 'auto', drumPat: 'auto',
+    motion: 'auto', harm: 'mid', voice: 'std', style: 'auto', pedal: 'auto', bassPlay: 'some', plan: 'auto' };
   const arr = Object.assign({}, ARR_DEF, pref('genreArr', {}));
-  $('genreArr').innerHTML = ARR_FIELDS.map(f => `<label class="f"><span>${f.label}</span><select data-arr="${f.id}">`
-    + Object.entries(f.table).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('') + '</select></label>').join('');
+  const arrField = f => `<label class="f"><span>${f.label}</span><select data-arr="${f.id}">`
+    + Object.entries(f.table).map(([k, v]) => `<option value="${k}">${v.name}</option>`).join('') + '</select></label>';
+  $('genreArr').innerHTML = `<h4>作曲と展開</h4><div class="dlg-row arr-row">${ARR_FIELDS.filter(f => f.g === 'comp').map(arrField).join('')}</div>`
+    + `<h4>伴奏とコードの細かいところ</h4><div class="dlg-row arr-row">${ARR_FIELDS.filter(f => f.g !== 'comp').map(arrField).join('')}</div>`
+    + `<div class="dlg-row arr-row"><button type="button" id="arrReset" class="hw taupe">ぜんぶ「まかせる」に戻す</button></div>`;
+  $('arrReset').addEventListener('click', () => {
+    Object.assign(arr, ARR_DEF); setPref('genreArr', arr);
+    $('genreArr').querySelectorAll('select').forEach(sel => { sel.value = arr[sel.dataset.arr]; });
+  });
   $('genreArr').querySelectorAll('select').forEach(sel => {
     if (![...sel.options].some(op => op.value === arr[sel.dataset.arr])) arr[sel.dataset.arr] = ARR_DEF[sel.dataset.arr];
     sel.value = arr[sel.dataset.arr];
@@ -2375,6 +2495,19 @@ export function startEditor({ loadTone }) {
   });
   // 作る前に効かせるもの（エンジンが読む）と、作ってから並べ直すもの（コードの響き・弾き方）
   function applyArr(st) {
+    // 作曲と展開：曲調（新しい曲調ならその決めた値）をもとに、「まかせる」以外を上書きする
+    if (arr.compose === 'engine') st.compose = null;
+    else if (arr.compose !== 'auto') st.compose = arr.compose;
+    else if (st.compose === undefined) st.compose = CM.autoStyle(st.preset);
+    if (arr.form !== 'auto') st.form = arr.form;
+    else if (!st.form) st.form = CM.autoForm(st.preset, st.compose);
+    if (arr.prog === 'compose') st.progCompose = true;
+    else if (arr.prog === 'preset') st.progCompose = false;
+    else if (st.progCompose === undefined) st.progCompose = CM.autoProg(st.compose, st.form);
+    if (arr.color !== 'auto') st.progColor = arr.color;
+    if (arr.cscale !== 'auto') st.composeScale = arr.cscale;
+    if (arr.drumPat === 'kit') st.drumPat = null;
+    else if (arr.drumPat !== 'auto') st.drumPat = arr.drumPat;
     if (arr.motion !== 'auto') st.chordMotion = arr.motion;
     if (arr.pedal !== 'auto') st.pedal = arr.pedal === 'pedal';
     if (arr.plan !== 'auto') st.plan = arr.plan;
@@ -2400,6 +2533,29 @@ export function startEditor({ loadTone }) {
     dlg.querySelectorAll('.genre').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === k ? 'true' : 'false'));
     $('genreStatus').textContent = '「' + E.PRESETS[k].label + '」で作った。もう一度押すと別の演奏になる';
   }
+  /* 新しい曲調：土台の曲調に、作曲スタイル・展開・リズムの型・音色を重ねる */
+  function pickNewGenre(k) {
+    const G = CM.GENRES[k], scratch = fromScratch;
+    const st = defaultState(G.base); st.sections = dlgSections();
+    st.bpm = G.bpm;
+    if (!scratch && proj) st.bpm = proj.st.bpm;
+    Object.assign(st, JSON.parse(JSON.stringify(G.st)));
+    if (meter !== 'auto') st.beats = +meter;
+    if (st.beats) E.fitMeter(st);
+    st.genre = k;
+    applyArr(st);
+    startFrom(st, '「' + G.label + '」で作った' + (scratch ? '' : '（テンポ ' + st.bpm + ' のまま）'), {
+      keepOpen: true,
+      post: p => {
+        for (const t of ['lead', 'chord', 'bass', 'drum']) if (G.sound[t]) P.setSound(p, t, G.sound[t]);
+        postArr(p);
+        if (arr.style === 'auto' && G.chordStyle) P.setStyle(p, 'chord', G.chordStyle);
+      },
+    });
+    dlg.querySelectorAll('.genre').forEach(b => b.setAttribute('aria-pressed', b.dataset.g === k ? 'true' : 'false'));
+    $('genreStatus').textContent = '「' + G.label + '」で作った。もう一度押すと別の曲になる';
+  }
+  dlg.querySelectorAll('.genre[data-g]').forEach(b => b.addEventListener('click', () => pickNewGenre(b.dataset.g)));
   dlg.addEventListener('close', () => { fromScratch = false; });
 
   /* 新規作成：確認してから、すべてリセットしてジャンル選択へ */
@@ -2410,11 +2566,13 @@ export function startEditor({ loadTone }) {
   newDlg.addEventListener('click', e => { if (e.target === newDlg) newDlg.close(); });
   $('newSave').addEventListener('click', () => exportAs('json'));
   $('newGo').addEventListener('click', () => { newDlg.close(); openGenre(true); });
-  dlg.querySelectorAll('.genre').forEach(b => b.addEventListener('click', () => pickGenre(b.dataset.k)));
+  dlg.querySelectorAll('.genre[data-k]').forEach(b => b.addEventListener('click', () => pickGenre(b.dataset.k)));
   /* ランダム：「その他」といまの曲調は除いて、曲調だけを引く（テンポ・アレンジはそのまま） */
   $('dlgRandom').addEventListener('click', () => {
-    const pool = Object.keys(E.PRESETS).filter(k => !MORE_GENRES.includes(k) && !(proj && k === proj.st.preset));
-    pickGenre(pool[Math.floor(Math.random() * pool.length)]);
+    const pool = Object.keys(E.PRESETS).filter(k => !MORE_GENRES.includes(k) && !(proj && !proj.st.genre && k === proj.st.preset)).map(k => ['p', k])
+      .concat(Object.keys(CM.GENRES).filter(k => !(proj && proj.st.genre === k)).map(k => ['g', k]));
+    const [kind, k] = pool[Math.floor(Math.random() * pool.length)];
+    if (kind === 'g') pickNewGenre(k); else pickGenre(k);
   });
   $('codeApply').addEventListener('click', () => {
     const r = E.decodeRecipe($('codeIn').value);
@@ -2443,24 +2601,38 @@ export function startEditor({ loadTone }) {
     const f = e.dataTransfer.files[0]; if (f) loadFile(f);
   });
   async function loadFile(f) {
-    try { openProject(P.parseProject(await f.text()), '「' + f.name + '」を開いた'); }
+    try { openSong(P.parseProject(await f.text()), null, '「' + f.name + '」を開いた（前の曲は「過去の曲」に残ってる）'); }
     catch (err) { setStatus('開けなかった：' + err.message, true); }
   }
-  function openProject(p, msg) {
-    pushUndo();
+  // 別の曲に切り替える。id が null なら新しい曲として残しはじめる
+  function openSong(p, id, msg, undo) {
+    if (id === null) newSong(); else { saveLocal(); setSongId(id); }
     proj = p; sel.clear(); focusRow = null; page = 0;
+    undoStack = undo ? undo.undo.slice() : []; redoStack = undo ? undo.redo.slice() : [];
     changed({ sound: true, rows: true });
     scrollX = 0; fitView(); syncPage(); draw();
     setStatus(msg);
   }
 
   /* ---------------- 過去の曲 ---------------- */
-  // 新規作成で手放す曲を、JSON で保存するときと同じ名前でブラウザ（IndexedDB）に残す
-  function archive() {
-    if (!proj) return Promise.resolve(false);
-    return H.add({ name: baseName(), json: P.toJSON(proj), preset: proj.st.preset, bpm: proj.st.bpm, bars: proj.bars })
-      .catch(() => { setStatus('前の曲をブラウザに残せなかった', true); return false; });
+  // 編集中の曲は、JSON で保存するときと同じ名前で、ブラウザ（IndexedDB）に1曲1件で残し続ける。
+  // 取り消しの履歴も一緒に残すので、ページを閉じても ⌘Z で戻れる
+  const UNDO_SAVE = 80, REDO_SAVE = 30;
+  let songId = +pref('songId', 0);
+  function setSongId(id) { songId = id; setPref('songId', id); }
+  if (!songId) setSongId(Date.now());
+  function saveHist() {
+    if (!proj) return Promise.resolve();
+    return H.put({ id: songId, name: baseName(), json: P.toJSON(proj), preset: proj.st.preset, bpm: proj.st.bpm, bars: proj.bars },
+      { undo: undoStack.slice(-UNDO_SAVE), redo: redoStack.slice(-REDO_SAVE) })
+      .catch(() => setStatus('ブラウザに残せなかった（容量がいっぱいかも）', true));
   }
+  // いまの曲を残しきってから、新しい曲の id にする
+  function newSong() { saveLocal(); if (!cfg.autosave) saveHist(); setSongId(Date.now()); }
+  // ページを閉じる・隠すときにも残す
+  addEventListener('pagehide', saveLocal);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) saveLocal(); });
+
   const histDlg = $('histDlg');
   const fmtDate = t => {
     const d = new Date(t), z = n => String(n).padStart(2, '0');
@@ -2468,15 +2640,15 @@ export function startEditor({ loadTone }) {
   };
   let histItems = [];
   async function syncHist() {
-    try { histItems = await H.list(); }
+    try { if (cfg.autosave) await saveHist(); histItems = await H.list(); }
     catch (e) { histItems = []; $('histList').innerHTML = '<p class="dlg-note">このブラウザでは過去の曲を読み出せなかった</p>'; return; }
     $('histList').innerHTML = histItems.length ? histItems.map(h => {
-      const g = E.PRESETS[h.preset];
+      const g = E.PRESETS[h.preset], now = h.id === songId;
       return `<div class="hist-row" data-id="${h.id}">
-        <button type="button" class="hist-open" data-hopen="${h.id}" title="この曲を開く（いまの曲には ⌘Z で戻れる）"><b>${h.name}</b><span>${fmtDate(h.savedAt)}・${g ? g.label : h.preset}・${h.bpm}BPM・${h.bars}小節</span></button>
-        <button type="button" class="x" data-hdel="${h.id}" title="消す" aria-label="消す">${ICON_CLOSE}</button>
+        <button type="button" class="hist-open" data-hopen="${h.id}" ${now ? 'disabled' : 'title="この曲を開く。取り消しの履歴も戻る"'}><b>${h.name}${now ? '<i>いま開いてる曲</i>' : ''}</b><span>${fmtDate(h.savedAt)}・${g ? g.label : h.preset}・${h.bpm}BPM・${h.bars}小節</span></button>
+        ${now ? '' : `<button type="button" class="x" data-hdel="${h.id}" title="消す" aria-label="消す">${ICON_CLOSE}</button>`}
       </div>`;
-    }).join('') : '<p class="dlg-note">まだない。新規作成すると、それまでの曲がここに入る</p>';
+    }).join('') : '<p class="dlg-note">まだない</p>';
   }
   $('btnHist').addEventListener('click', () => { syncHist(); histDlg.showModal(); });
   $('histClose').addEventListener('click', () => histDlg.close());
@@ -2487,9 +2659,9 @@ export function startEditor({ loadTone }) {
       const h = histItems.find(x => x.id === +o.dataset.hopen); if (!h) return;
       try {
         const p = P.parseProject(h.json);
-        await archive();   // いまの曲も残しておく（同じ中身ならふえない）
+        let undo = null; try { undo = await H.getUndo(h.id); } catch (err) { }
         histDlg.close();
-        openProject(p, '「' + h.name + '」を開いた（前の曲には ⌘Z で戻れる）');
+        openSong(p, h.id, '「' + h.name + '」を開いた（前の曲は「過去の曲」に残ってる）', undo);
       } catch (err) { setStatus('開けなかった：' + err.message, true); }
     } else if (d) {
       try { await H.remove(+d.dataset.hdel); } catch (err) { }
@@ -2556,6 +2728,11 @@ export function startEditor({ loadTone }) {
     if (s) proj = P.parseProject(s);
   } catch (e) { proj = null; }
   if (!proj) { const st = defaultState('nonbiri'); applyArr(st); proj = P.fromState(st); postArr(proj); }
+  // 前に開いていたときの取り消しの履歴を戻す（読み出しが終わる前に編集していたら、そちらを優先）
+  H.getUndo(songId).then(u => {
+    if (!u || undoStack.length || redoStack.length) return;
+    undoStack = u.undo.slice(); redoStack = u.redo.slice(); syncStrip();
+  }).catch(() => { });
 
   buildTracks();
   computeRows();

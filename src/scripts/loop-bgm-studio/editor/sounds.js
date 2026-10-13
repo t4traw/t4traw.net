@@ -11,6 +11,7 @@
   ドラム   … 各打楽器の声の差分（DRUM_BASE からの差分）
 */
 import * as E from "../engine.js";
+import * as C from "./composer.js";
 
 /* ---------- メロディ ---------- */
 export const LEAD_CATS = [
@@ -52,6 +53,10 @@ const LEAD_EXTRA = {
   trumpet: { name: 'トランペット風', cat: 'wind', like: 'brass', gm: 56, vol: -17, cfg: fm({ h: 1, m: 4.5, osc: { type: 'sawtooth' }, env: env(.03, .3, .7, .2), menv: env(.06, .3, .55, .2) }) },
   sax: { name: 'サックス風', cat: 'wind', like: 'brass', gm: 65, vol: -17, cfg: fm({ h: 1, m: 3, osc: { type: 'sawtooth' }, mod: { type: 'square' }, env: env(.04, .3, .7, .25), menv: env(.05, .4, .4, .2) }) },
   voice: { name: 'ボイス', cat: 'wind', like: 'whistle', gm: 53, vol: -12, cfg: fm({ h: 1, m: .9, osc: { type: 'fattriangle', count: 3, spread: 14 }, env: env(.12, .3, .75, .5) }) },
+  // 2026-10-11 追加（壮大・感動系の作曲向け）
+  horn: { name: 'ホルン風', cat: 'wind', like: 'brass', gm: 60, vol: -16, cfg: fm({ h: 1, m: 2.2, osc: { type: 'triangle' }, env: env(.06, .3, .75, .35), menv: env(.08, .3, .5, .3) }) },
+  strlead: { name: 'ストリングス旋律', cat: 'wind', like: 'bow', gm: 48, vol: -20, cfg: fm({ m: .5, osc: { type: 'fatsawtooth', count: 3, spread: 16 }, env: env(.12, .3, .85, .5) }) },
+  choir: { name: 'クワイア', cat: 'wind', like: 'whistle', gm: 52, vol: -14, cfg: fm({ m: .6, osc: { type: 'fattriangle', count: 3, spread: 20 }, env: env(.2, .4, .8, .8) }) },
   cello: { name: 'チェロ風', cat: 'wind', like: 'bow', gm: 42, vol: -16, cfg: fm({ h: 1, m: 1, osc: { type: 'sawtooth' }, env: env(.18, .3, .85, .45), menv: env(.25, .3, .6, .3) }) },
 
   pulse: { name: 'パルスリード', cat: 'synth', like: 'square', gm: 80, vol: -18, cfg: fm({ osc: { type: 'pulse', width: .2 }, env: env(.004, .25, .55, .2) }) },
@@ -60,6 +65,8 @@ const LEAD_EXTRA = {
   softlead: { name: 'ソフトリード', cat: 'synth', like: 'synth', gm: 82, vol: -12, cfg: fm({ m: .4, osc: { type: 'triangle' }, env: env(.02, .3, .6, .3) }) },
   fmlead: { name: 'FMリード', cat: 'synth', like: 'synth', gm: 81, vol: -14, cfg: fm({ h: 2, m: 8, env: env(.004, .35, .5, .2), menv: env(.004, .3, .45, .2) }) },
   sync: { name: 'シンク風', cat: 'synth', like: 'saw', gm: 84, vol: -18, cfg: fm({ h: 2.5, m: 6, osc: { type: 'sawtooth' }, env: env(.003, .3, .55, .2), menv: env(.003, .5, .2, .2) }) },
+  futurelead: { name: 'フューチャーリード', cat: 'synth', like: 'supersaw', gm: 81, vol: -22, cfg: fm({ h: 2, m: 1.2, osc: { type: 'fatsawtooth', count: 4, spread: 30 }, env: env(.005, .25, .5, .3) }) },
+  vchop: { name: 'ボーカルチョップ風', cat: 'synth', like: 'whistle', gm: 54, vol: -13, cfg: fm({ h: 1.5, m: 2.5, osc: { type: 'fattriangle', count: 2, spread: 12 }, env: env(.01, .18, .3, .15), menv: env(.01, .15, .2, .1) }) },
   pluck2: { name: 'シンセプラック', cat: 'synth', like: 'pluck', gm: 84, vol: -16, cfg: fm({ m: 1.5, osc: { type: 'sawtooth' }, env: env(.002, .22, 0, .2), menv: env(.002, .08, 0, .08) }) },
   lofilead: { name: 'ローファイリード', cat: 'synth', like: 'synth', gm: 81, vol: -13, cfg: fm({ m: .8, osc: { type: 'fattriangle', count: 2, spread: 24 }, env: env(.01, .5, .4, .4) }) },
   bright: { name: 'ブライトリード', cat: 'synth', like: 'saw', gm: 81, vol: -20, cfg: fm({ h: 1, m: 2, osc: { type: 'fatsawtooth', count: 2, spread: 12 }, mod: { type: 'sawtooth' }, env: env(.004, .3, .6, .25) }) },
@@ -108,9 +115,12 @@ const CHORD_EXTRA = {
   darkpad: { name: 'ダークパッド', cat: 'pad', like: 'pad', gm: 95, vol: -22, filt: 900, cfg: syn({ type: 'fattriangle', count: 3, spread: 22 }, env(.8, 1.2, .7, 2.2)) },
   swell: { name: 'スウェル', cat: 'pad', like: 'pad', gm: 89, vol: -24, filt: 2400, cfg: syn({ type: 'fatsawtooth', count: 3, spread: 16 }, env(2, .5, .9, 1.6)) },
   airy: { name: 'エアリーパッド', cat: 'pad', like: 'choir', gm: 91, vol: -22, filt: 3200, cfg: syn({ type: 'pwm', modulationFrequency: .4 }, env(.7, 1, .7, 2)) },
+  orch: { name: 'オーケストラ和音', cat: 'pad', like: 'strings', gm: 48, vol: -25, filt: 3400, cfg: syn({ type: 'fatsawtooth', count: 3, spread: 20 }, env(.25, .6, .75, 1.2)) },
+  harpchord: { name: 'ハープ和音', cat: 'keys', like: 'guitar', gm: 46, vol: -16, filt: 5000, cfg: syn({ type: 'triangle' }, env(.002, 1.2, 0, .9)) },
   fastrings: { name: 'ストリングス（速め）', cat: 'pad', like: 'strings', gm: 49, vol: -24, filt: 3000, cfg: syn({ type: 'fatsawtooth', count: 3, spread: 12 }, env(.12, .5, .7, .6)) },
   vox: { name: 'ボイスパッド', cat: 'pad', like: 'choir', gm: 54, vol: -18, filt: 1800, cfg: syn({ type: 'fattriangle', count: 3, spread: 10 }, env(.5, 1, .75, 1.8)) },
 
+  futurechord: { name: 'フューチャー和音', cat: 'synth', like: 'supersaw', gm: 81, vol: -27, filt: 5200, cfg: syn({ type: 'fatsawtooth', count: 4, spread: 34 }, env(.01, .25, .55, .3)) },
   pluck: { name: 'プラック和音', cat: 'synth', like: 'stab', gm: 84, vol: -22, filt: 4200, cfg: syn({ type: 'sawtooth' }, env(.002, .25, 0, .2)) },
   houseorgan: { name: 'ハウスオルガン', cat: 'synth', like: 'stab', gm: 17, vol: -23, filt: 3600, cfg: syn({ type: 'custom', partials: [1, .5, .8, .2, .4] }, env(.002, .18, .1, .1)) },
   gate: { name: 'ゲートシンセ', cat: 'synth', like: 'stab', gm: 81, vol: -26, filt: 5200, cfg: syn({ type: 'fatsawtooth', count: 3, spread: 26 }, env(.003, .1, .9, .05)) },
@@ -229,6 +239,8 @@ export function drumKit(key) {
 /* メロディ：メロディの作り方（st.mel）の組み合わせ。選ぶと同じタネで作り直す */
 const mel = (dens, range, leap, o) => Object.assign({ dens, range, leap, oct: 0, octUp: false, harm: false, counter: false }, o || {});
 export const LEAD_STYLES = {
+  // 作曲（composer.js）：展開に合わせて、型から組み立てる。選ぶと同じタネで作り直す
+  ...Object.fromEntries(Object.entries(C.STYLES).map(([k, v]) => ['c_' + k, { name: v.name, cat: 'compose', desc: v.desc, compose: k, mel: mel(55, 55, 45) }])),
   // うた：1小節の動機をくり返し・ずらし・対比させて、8小節で問いと答えを作る（エンジンの plan:'motif'）
   sing: { name: 'うたう', cat: 'song', desc: '動機をくり返したりずらしたりして、問いと答えで8小節を組む。いちばん「曲」らしい', mel: mel(55, 55, 40), plan: 'motif' },
   singBounce: { name: 'はずむ', cat: 'song', desc: '細かいリズムの動機で、軽快に', mel: mel(82, 55, 50), plan: 'motif' },
@@ -253,7 +265,7 @@ export const LEAD_STYLES = {
   arp: { name: '分散和音（8分）', cat: 'repeat', desc: '和音の音を規則的な形（上り・上り下り・とび・低い音に戻る）で8分に鳴らし続ける。宇宙や無重力の面に', mel: mel(70, 55, 45), plan: 'arp' },
   arpSlow: { name: '分散和音（4分）', cat: 'repeat', desc: '同じ形を4分でゆっくり。遅い曲や静かな場面に', mel: mel(45, 55, 45), plan: 'arp' },
 };
-export const LEAD_STYLE_CATS = [{ id: 'song', name: 'うた' }, { id: 'basic', name: 'フレーズ' }, { id: 'layer', name: '重ね' }, { id: 'repeat', name: '反復' }];
+export const LEAD_STYLE_CATS = [{ id: 'compose', name: '作曲（展開に合わせて組み立てる）' }, { id: 'song', name: 'うた' }, { id: 'basic', name: 'フレーズ' }, { id: 'layer', name: '重ね' }, { id: 'repeat', name: '反復' }];
 
 /* コード：曲調どおり（エンジンで作り直す）か、小節ごとの和音をリズムに並べる */
 export const CHORD_STYLES = {
@@ -269,6 +281,14 @@ export const CHORD_STYLES = {
   arpUp: { name: 'アルペジオ（上り）', cat: 'arp', desc: '和音を下から1音ずつ' },
   arpUpDown: { name: 'アルペジオ（上下）', cat: 'arp', desc: '上って下りる' },
   arp16: { name: '16分アルペジオ', cat: 'arp', desc: '細かく速い分散和音' },
+  // 2026-10-11 追加
+  chop: { name: 'チョップ', cat: 'rhythm', desc: '16分で細かく刻んで、ところどころ抜く。フューチャーベースの和音' },
+  pump: { name: 'ポンプ', cat: 'rhythm', desc: '拍の頭を少しあけて、ふくらむように鳴らす。サイドチェインのかかったEDMの和音' },
+  gallop: { name: 'ギャロップ', cat: 'rhythm', desc: '「タッタカ」と8分＋16分2つ。勇ましく駆ける' },
+  dotted: { name: '付点8分', cat: 'rhythm', desc: '付点8分で3つずつ刻む。ディレイのかかったギターのような推進力' },
+  stab: { name: 'スタブ', cat: 'rhythm', desc: '短く鋭く、3+3+2+…の位置だけ。ビッグルームのシンセ' },
+  ballad: { name: 'バラード伴奏', cat: 'arp', desc: '低い音から8分で、上って戻るピアノの伴奏' },
+  hold2: { name: '白玉＋刻み', cat: 'basic', desc: '頭で和音をのばしたまま、てっぺんの音だけ8分で刻む' },
 };
 export const CHORD_STYLE_CATS = [{ id: 'basic', name: 'のばす' }, { id: 'rhythm', name: '刻む' }, { id: 'arp', name: '分散和音' }];
 
@@ -315,7 +335,11 @@ export const CHORD_VARIES = {
   wild: { name: 'たっぷり', desc: '1・2・3・3 のように細かく動く。ジャズっぽい寄り道も', v: 90 },
 };
 export const BASS_STYLE_CATS = [{ id: 'all', name: 'パターン' }];
-export const DRUM_STYLE_CATS = [{ id: 'all', name: 'パターン' }];
+export const DRUM_STYLE_CATS = [{ id: 'pat', name: 'リズムの型（展開に合わせて組める）' }, { id: 'all', name: '曲調のドラム' }];
+/* ドラムのパターン：曲調のドラム（エンジン）と、エディタのリズムの型（composer.js）をいっしょに並べる */
+export const DRUM_STYLES = Object.assign({},
+  Object.fromEntries(Object.entries(C.DRUM_PATTERNS).map(([k, v]) => [k, { name: v.name + (v.beats === 3 ? '（3拍子）' : ''), desc: v.desc, cat: 'pat' }])),
+  E.KITS);
 
 const r4 = x => Math.round(x * 10000) / 10000;
 /* 1小節ぶんの和音を、響きに合わせて積む（まん中の音域で）。前の小節から近い形でつなぐ */
@@ -404,6 +428,26 @@ function barPattern(style, EPB, MID, vc) {
     case 'arpUp': arp(vc.concat(top), 1); break;
     case 'arpUpDown': { const s = vc.concat(top); arp(s.concat(s.slice(1, -1).reverse()), 1); break; }
     case 'arp16': arp(vc.concat(top), .5); break;
+    case 'chop': {
+      const pat = EPB === 8 ? 'x.xx.x.xx.x.x.xx' : 'x.xx.x.xx.x.';
+      for (let i = 0; i < pat.length; i++) if (pat[i] === 'x') hit(i / 2, .42, i % 4 === 0 ? .36 : .28);
+      break;
+    }
+    case 'pump': for (let p = 0; p < EPB; p += 2) hit(p + .5, 1.4, p === 0 ? .36 : .3); break;
+    case 'gallop': for (let p = 0; p < EPB; p += 2) { hit(p, .9, .36); hit(p + 1, .45, .26); hit(p + 1.5, .45, .28); } break;
+    case 'dotted': for (let p = 0; p < EPB - 1e-6; p += 1.5) hit(p, 1.3, p === 0 ? .36 : .28); break;
+    case 'stab': { const pts = EPB === 8 ? [0, 1.5, 3, 4.5, 6] : [0, 1.5, 3, 4.5]; pts.forEach((p, i) => hit(p, .45, i ? .32 : .4)); break; }
+    case 'ballad': {
+      // 低い音から：1・5・8・10度の順に上り、戻る
+      const s = vc.concat(top), seq = [s[0], s[Math.min(2, s.length - 1)], s[s.length - 1], s[Math.min(1, s.length - 1)]];
+      for (let p = 0, i = 0; p < EPB; p++, i++) out.push({ t: p, d: Math.min(2, EPB - p), n: seq[i % seq.length], v: i % 2 ? .28 : .34 });
+      break;
+    }
+    case 'hold2': {
+      hit(0, EPB, .3, vc.slice(0, -1));
+      for (let p = 0; p < EPB; p++) out.push({ t: p, d: .85, n: vc[vc.length - 1], v: p % 2 ? .26 : .32 });
+      break;
+    }
     default: hit(0, EPB, .32);
   }
   return out;
@@ -412,6 +456,6 @@ function barPattern(style, EPB, MID, vc) {
 /* ---------- 音色の取り出し ---------- */
 export const SOUND_TABLE = { lead: LEAD_SOUNDS, chord: CHORD_SOUNDS, bass: BASS_SOUNDS, drum: DRUM_KITS };
 export const SOUND_CATS = { lead: LEAD_CATS, chord: CHORD_CATS, bass: BASS_CATS, drum: DRUM_CATS };
-export const STYLE_TABLE = { lead: LEAD_STYLES, chord: CHORD_STYLES, bass: E.BASSES, drum: E.KITS };
+export const STYLE_TABLE = { lead: LEAD_STYLES, chord: CHORD_STYLES, bass: E.BASSES, drum: DRUM_STYLES };
 export const STYLE_CATS = { lead: LEAD_STYLE_CATS, chord: CHORD_STYLE_CATS, bass: BASS_STYLE_CATS, drum: DRUM_STYLE_CATS };
 export const DEFAULT_SOUND = { bass: 'tri', drum: 'std' };

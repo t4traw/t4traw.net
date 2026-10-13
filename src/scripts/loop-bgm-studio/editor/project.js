@@ -23,6 +23,11 @@
     st.pedal  … ベースを主音に固定するか（true/false。null なら曲調の既定）
     st.chordMotion … 和音の動き（'auto' / 'half' / 'quarter' / 'hold'。無ければ曲調どおり）
     st.beats  … 拍子の上書き（3 / 4。無ければ曲調どおり）。レシピコードには入らない
+    st.compose … 作曲スタイル（composer.js の STYLES。null ならエンジンの作り方）
+    st.form   … 展開（composer.js の FORMS。'flat' か無ければ展開なし）
+    st.progCompose / st.progColor … 進行を展開に合わせて作曲したか・和音の色（作った和音は slots に残る）
+    st.drumPat … ドラムのリズムの型（composer.js の DRUM_PATTERNS。null なら曲調のドラム）
+    st.composeScale … 作曲で使う音階（engine の SCALES のキー。無ければスタイルの既定）
     notes:  {
       lead:  [{t, d, n, v, l}]   t=位置・d=長さ（8分音符単位）n=MIDIノート v=強さ0〜1 l=main/oct/harm/counter
       chord: [{t, d, n, v}]      和音は1音ずつばらして持つ
@@ -34,6 +39,7 @@
 import * as E from "../engine.js";
 import * as S from "./sounds.js";
 import * as F from "./fx.js";
+import * as C from "./composer.js";
 
 export const FORMAT = 'loop-bgm-project';
 export const VERSION = 1;
@@ -124,7 +130,10 @@ export function fromState(st, mix) {
   const s = clone(st);
   // ミュートはエディタの mix が持つ。曲調の演奏は全パート作っておく
   s.mute = { lead: false, chord: false, bass: false, drum: false };
+  // 進行を作曲するときは、拍ごとの和音を先に決めてエンジンに渡す（できた和音は proj.slots に残る）
+  C.prepareState(s);
   const song = E.buildSong(s);
+  delete s.slots;
   const proj = {
     format: FORMAT, version: VERSION,
     recipe: E.encodeRecipe(st),
@@ -134,6 +143,8 @@ export function fromState(st, mix) {
     notes: notesFromEvents(song.events),
   };
   if (song.slots) proj.slots = song.slots;
+  // 作曲スタイル・ドラムの型・展開
+  C.finish(proj);
   return proj;
 }
 
@@ -176,6 +187,13 @@ export function setSound(proj, k, key) {
 export function setStyle(proj, k, key) {
   if (k === 'lead') {
     proj.st.leadStyle = key;
+    // 作曲の型：エンジンの作り方の代わりに composer.js で組み立てる
+    if (S.LEAD_STYLES[key].compose) {
+      proj.st.compose = S.LEAD_STYLES[key].compose;
+      regenerateTrack(proj, 'lead', { seed: proj.st.seed });
+      return;
+    }
+    proj.st.compose = null;
     // 反復の型を持たない型（ふつう・細かく…）は、いまの作り方（うた／ランダムな線）のまま数値だけ替える
     const eff = proj.st.plan || E.PRESETS[proj.st.preset].plan || 'free';
     const plan = S.LEAD_STYLES[key].plan || (eff === 'free' ? 'free' : 'motif');
@@ -183,9 +201,10 @@ export function setStyle(proj, k, key) {
   } else if (k === 'chord') {
     proj.st.chordStyle = key;
     if (key === 'auto') regenerateTrack(proj, 'chord', { seed: proj.st.seed });
-    else proj.notes.chord = S.chordPattern(proj, key);
+    else { proj.notes.chord = S.chordPattern(proj, key); C.finish(proj, ['chord']); }
   } else if (k === 'bass') regenerateTrack(proj, 'bass', { bassStyle: key, seed: proj.st.seed });
-  else regenerateTrack(proj, 'drum', { drums: key, seed: proj.st.seed });
+  else if (C.DRUM_PATTERNS[key]) { proj.st.drumPat = key; regenerateTrack(proj, 'drum', { seed: proj.st.seed }); }
+  else { proj.st.drumPat = null; regenerateTrack(proj, 'drum', { drums: key, seed: proj.st.seed }); }
 }
 
 /* コードの響き・音域を変えて、いまの弾き方で並べ直す。曲調どおりのときは「のばし」にする */
@@ -198,7 +217,8 @@ export function setChordVoicing(proj, patch) {
 /* いま選ばれているパターン（メロディは作り方の数値が一致するものがあれば） */
 export function styleOf(proj, k) {
   if (k === 'bass') return proj.st.bassStyle;
-  if (k === 'drum') return proj.st.drums;
+  if (k === 'drum') return proj.st.drumPat && C.DRUM_PATTERNS[proj.st.drumPat] ? proj.st.drumPat : proj.st.drums;
+  if (k === 'lead' && proj.st.compose && C.STYLES[proj.st.compose]) return 'c_' + proj.st.compose;
   if (k === 'chord') return proj.st.chordStyle || 'auto';
   // いま効いている反復の型（決めていなければ曲調の既定）と作り方の数値が両方合うもの。
   // 反復の型だけ合う（曲調の既定のまま）なら、その型を表す項目を選ぶ
@@ -233,6 +253,8 @@ export function regenerateTrack(proj, track, patch) {
   if (track === 'lead') proj.st.seed = st.seed;
   if (track === 'chord' && (!patch || patch.seed === undefined)) proj.st.chordStyle = 'auto';
   for (const k of Object.keys(patch || {})) if (k !== 'seed') proj.st[k] = st[k];
+  // 作曲スタイル・ドラムの型・展開を、作り直したトラックにかけ直す
+  C.finish(proj, [track]);
 }
 
 export const endOf = proj => proj.bars * proj.beats * 2;
@@ -333,6 +355,12 @@ export function parseProject(text) {
   if (st.pedal !== undefined && st.pedal !== null) st.pedal = !!st.pedal;
   if (st.chordMotion !== undefined && !S.CHORD_MOTIONS[st.chordMotion]) delete st.chordMotion;
   if (st.beats !== undefined && st.beats !== 3 && st.beats !== 4) delete st.beats;
+  if (st.compose && !C.STYLES[st.compose]) st.compose = null;
+  if (st.form && !C.FORMS[st.form]) st.form = 'flat';
+  if (st.drumPat && !C.DRUM_PATTERNS[st.drumPat]) st.drumPat = null;
+  if (st.progColor && !C.COLORS[st.progColor]) delete st.progColor;
+  if (st.composeScale && !E.SCALES[st.composeScale]) delete st.composeScale;
+  delete st.slots;
   delete st.gm;
   for (const k of TRACKS) { st.mute[k] = false; st.partVol[k] = st.partVol[k] ?? 80; }
 
@@ -531,6 +559,14 @@ export function schedule(transport, rig, proj) {
   E.scheduleAll(transport, rig, { events: drum, epb }, { mute: {} });
 }
 
+/* 同時に鳴らせる音の数を広げる。刻む弾き方（ギャロップ・チョップ）と余韻の長い音色を合わせると、
+   Tone.js の既定（32）を超えて音が落ちるため。エディタだけ（メーカーのエンジンはそのまま） */
+export function roomy(rig) {
+  rig.chords.maxPolyphony = 96;
+  rig.lead.maxPolyphony = 64;
+  return rig;
+}
+
 /* 1周ぶんをオフラインで合成（リバーブのしっぽ込み） */
 export async function renderOffline(proj, loopSec, tail, onRetry) {
   const Tone = E.getTone();
@@ -540,7 +576,7 @@ export async function renderOffline(proj, loopSec, tail, onRetry) {
   const render = noVerb => Tone.Offline(({ transport }) => {
     E.setupTransport(transport, st);
     transport.timeSignature = proj.beats;
-    const rig = E.createRig({ noVerb, pan: true });
+    const rig = roomy(E.createRig({ noVerb, pan: true }));
     rig.apply(st, 0);
     applyMix(rig, proj, on, 0);
     rig.setReverb(revLen(proj));
