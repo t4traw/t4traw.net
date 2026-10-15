@@ -22,6 +22,7 @@ import '../styles/index.scss';
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
+    {frontmatter.canonical && <link rel="canonical" href={frontmatter.canonical} />}
     <title>{frontmatter.title || frontmatter.head} - t4traw.net</title>
     <link rel="stylesheet" href="https://fonts.xz.style/serve/inter.css" />
   </head>
